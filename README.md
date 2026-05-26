@@ -43,6 +43,18 @@ pip install -r requirements.txt
 4. 已经输出可用于模型训练的 `clean_dataset.csv`。
 5. AI 模型已经开始初步训练，当前包含 Linear Regression 和 Random Forest 两个 baseline 模型。
 
+详细的阶段性成果可以看：
+
+```text
+docs/progress_report.md
+```
+
+项目中也已经加入真实数据样本：
+
+```text
+data/real_samples/pvdaq_system_10_2023_01_01.csv
+```
+
 ## 4. 直接运行
 
 生成模拟数据：
