@@ -4,7 +4,6 @@ import joblib
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from generate_data import generate_simulated_pv_data
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
@@ -14,7 +13,6 @@ from sklearn.preprocessing import StandardScaler
 
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
-DATA_PATH = ROOT_DIR / "data" / "simulated_pv_data.csv"
 CLEAN_DATA_PATH = ROOT_DIR / "data" / "clean_dataset.csv"
 RESULTS_DIR = ROOT_DIR / "results"
 MODELS_DIR = ROOT_DIR / "models"
@@ -37,18 +35,13 @@ TARGET_COLUMN = "power_output"
 
 
 def load_or_create_data() -> pd.DataFrame:
-    # Prefer the preprocessed dataset when the preprocessing stage has been run.
-    if CLEAN_DATA_PATH.exists():
-        return pd.read_csv(CLEAN_DATA_PATH)
+    # The progress-stage model should train from the cleaned dataset.
+    if not CLEAN_DATA_PATH.exists():
+        raise FileNotFoundError(
+            f"Missing cleaned dataset: {CLEAN_DATA_PATH}. Run `python src/preprocess_data.py` first."
+        )
 
-    if DATA_PATH.exists():
-        return pd.read_csv(DATA_PATH)
-
-    # Keep the demo runnable even when the raw CSV has not been generated yet.
-    DATA_PATH.parent.mkdir(parents=True, exist_ok=True)
-    df = generate_simulated_pv_data()
-    df.to_csv(DATA_PATH, index=False)
-    return df
+    return pd.read_csv(CLEAN_DATA_PATH)
 
 
 def build_models() -> dict:
