@@ -15,6 +15,7 @@ from sklearn.preprocessing import StandardScaler
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
 DATA_PATH = ROOT_DIR / "data" / "simulated_pv_data.csv"
+CLEAN_DATA_PATH = ROOT_DIR / "data" / "clean_dataset.csv"
 RESULTS_DIR = ROOT_DIR / "results"
 MODELS_DIR = ROOT_DIR / "models"
 
@@ -36,9 +37,14 @@ TARGET_COLUMN = "power_output"
 
 
 def load_or_create_data() -> pd.DataFrame:
+    # Prefer the preprocessed dataset when the preprocessing stage has been run.
+    if CLEAN_DATA_PATH.exists():
+        return pd.read_csv(CLEAN_DATA_PATH)
+
     if DATA_PATH.exists():
         return pd.read_csv(DATA_PATH)
 
+    # Keep the demo runnable even when the raw CSV has not been generated yet.
     DATA_PATH.parent.mkdir(parents=True, exist_ok=True)
     df = generate_simulated_pv_data()
     df.to_csv(DATA_PATH, index=False)

@@ -1,8 +1,6 @@
 # PV Normal Condition Power Prediction
 
-这是一个最小可展示的 AI 项目，用于演示如何根据天气和时间信息预测正常状态下的光伏发电功率。
-
-项目会自动生成模拟光伏数据，训练两个机器学习模型，并输出预测结果、评估指标和可视化图表。
+这是一个用于预测正常状态下光伏发电功率的 AI 项目。目前项目进度适合下周五向老师展示：已经准备了光伏数据样本，完成了数据预处理流程，并开始进行基础 AI 模型训练。
 
 ## 1. 项目结构
 
@@ -10,13 +8,17 @@
 PV/
   data/
     simulated_pv_data.csv
+    clean_dataset.csv
   src/
     generate_data.py
+    preprocess_data.py
     train_model.py
     predict.py
   models/
     best_pv_power_model.joblib
   results/
+    missing_values.csv
+    data_distribution.png
     prediction_results.csv
     predicted_vs_actual.png
     model_metrics.csv
@@ -31,12 +33,28 @@ PV/
 pip install -r requirements.txt
 ```
 
-## 3. 直接运行
+## 3. 当前阶段目标
+
+下周五展示的重点不是最终完成所有模型优化，而是展示项目正在按正确流程推进：
+
+1. 已经准备光伏发电数据样本。
+2. 已经完成数据字段整理和数据质量检查。
+3. 已经完成缺失值检查、异常值删除和数据分布可视化。
+4. 已经输出可用于模型训练的 `clean_dataset.csv`。
+5. AI 模型已经开始初步训练，当前包含 Linear Regression 和 Random Forest 两个 baseline 模型。
+
+## 4. 直接运行
 
 生成模拟数据：
 
 ```bash
 python src/generate_data.py
+```
+
+进行数据预处理：
+
+```bash
+python src/preprocess_data.py
 ```
 
 训练 Linear Regression 和 Random Forest，并生成结果文件：
@@ -51,9 +69,9 @@ python src/train_model.py
 python src/predict.py
 ```
 
-注意：如果还没有 `data/simulated_pv_data.csv`，`train_model.py` 会自动生成一份模拟数据。
+注意：如果存在 `data/clean_dataset.csv`，`train_model.py` 会优先使用清洗后的数据进行训练。
 
-## 4. 数据是什么
+## 5. 数据是什么
 
 数据集是模拟的一年逐小时光伏运行数据。它表示在正常运行状态下，光伏电站受到太阳辐照度、温度、湿度、风速和时间变化影响后的发电功率。
 
@@ -68,7 +86,19 @@ python src/predict.py
 - `day_of_year`: 一年中的第几天，用于表达季节变化。
 - `power_output`: 光伏发电功率，单位为 kW，是模型要预测的目标值。
 
-## 5. AI 模型怎么训练
+## 6. 数据预处理做了什么
+
+预处理脚本是 `src/preprocess_data.py`，它完成以下工作：
+
+1. 读取 `data/simulated_pv_data.csv`。
+2. 检查每个字段的缺失值，并输出 `results/missing_values.csv`。
+3. 删除缺失值。
+4. 删除不符合物理意义的异常值，例如负辐照度、湿度超过 100%、小时不在 0 到 23 之间等。
+5. 使用 IQR 方法删除极端统计异常值。
+6. 输出清洗后的数据 `data/clean_dataset.csv`。
+7. 生成数据分布图 `results/data_distribution.png`，用于展示清洗前后的数据分布。
+
+## 7. AI 模型怎么训练
 
 训练脚本会把数据分成训练集和测试集：
 
@@ -92,7 +122,7 @@ irradiance, ambient_temperature, module_temperature, humidity, wind_speed, hour,
 power_output
 ```
 
-## 6. 模型结果怎么看
+## 8. 模型结果怎么看
 
 训练完成后会生成三个主要结果文件：
 
@@ -113,18 +143,18 @@ power_output
 - 黑色对角线代表完美预测。
 - 点越靠近黑色对角线，说明预测越准确。
 
-## 7. 下周展示时应该怎么讲
+## 9. 下周五进度展示时应该怎么讲
 
 可以按这个顺序讲：
 
-1. 业务问题：光伏发电会受到太阳辐照度、温度、湿度、风速和时间影响，我们希望用 AI 预测正常状态下应该发多少电。
-2. 数据输入：模型使用天气数据和时间特征，比如 `irradiance`、`module_temperature`、`hour`、`day_of_year`。
-3. 预测目标：模型预测 `power_output`，也就是正常情况下的光伏发电功率。
-4. 模型方法：先用 Linear Regression 做可解释的基准，再用 Random Forest 捕捉更复杂的非线性关系。
-5. 评估方式：用 MAE、RMSE 和 R2 判断模型好不好。
-6. 图表解读：展示 `predicted_vs_actual.png`，说明散点越接近对角线，预测越准确。
-7. 实际价值：如果未来真实发电功率明显低于模型预测的正常功率，可能说明有遮挡、设备故障、积灰或其他异常，需要进一步检查。
+1. 研究目标：我想建立一个 AI 模型，用天气和运行条件预测正常状态下的光伏发电功率。
+2. 当前进度：目前已经完成数据样本准备和数据预处理，模型训练已经开始做 baseline。
+3. 数据字段：输入包括辐照度、环境温度、组件温度、湿度、风速、小时和年内天数，输出是发电功率。
+4. 预处理工作：我检查了缺失值，删除了异常值，并生成了清洗后的 `clean_dataset.csv`。
+5. 可视化展示：展示 `data_distribution.png`，说明我已经检查了数据分布。
+6. 初步模型：目前先用 Linear Regression 和 Random Forest 做初步训练，后面会继续调参、换真实数据或加入更多特征。
+7. 下一步计划：继续优化模型，比较不同算法效果，并研究预测值和实际值偏差是否可以用于发现异常发电情况。
 
 一句话总结：
 
-> 这个项目演示了如何用天气和运行条件训练 AI 模型，预测正常状态下光伏电站应该达到的发电功率，并用预测值和真实值的差异辅助发现潜在异常。
+> 当前阶段我已经完成了数据准备和预处理，正在进入 AI 模型初步训练阶段，后续会继续优化预测精度和结果解释。
