@@ -5,7 +5,7 @@ import pandas as pd
 
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
-MODEL_PATH = ROOT_DIR / "models" / "pv_power_model.joblib"
+MODEL_PATH = ROOT_DIR / "models" / "best_pv_power_model.joblib"
 
 
 def predict_power(sample: dict) -> float:
@@ -19,23 +19,22 @@ def predict_power(sample: dict) -> float:
     model = bundle["model"]
 
     X = pd.DataFrame([sample], columns=feature_columns)
-    prediction = float(model.predict(X)[0])
-    return max(prediction, 0.0)
+    return max(float(model.predict(X)[0]), 0.0)
 
 
 def main() -> None:
     sample = {
-        "irradiance_w_m2": 780,
-        "ambient_temp_c": 28,
-        "module_temp_c": 47,
-        "wind_speed_m_s": 2.5,
-        "humidity_pct": 55,
-        "cloud_cover_pct": 20,
+        "irradiance": 780,
+        "ambient_temperature": 28,
+        "module_temperature": 47,
+        "humidity": 55,
+        "wind_speed": 2.5,
         "hour": 12,
         "day_of_year": 180,
     }
+
     predicted_power = predict_power(sample)
-    print(f"Predicted normal PV power: {predicted_power:.2f} kW")
+    print(f"Predicted normal PV power output: {predicted_power:.2f} kW")
 
 
 if __name__ == "__main__":

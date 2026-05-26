@@ -6,6 +6,5 @@ env/
 .env
 
 models/*.joblib
-results/*.png
 
 .ipynb_checkpoints/

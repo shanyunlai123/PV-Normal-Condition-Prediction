@@ -1,7 +1,0 @@
-{
-  "model_type": "random_forest",
-  "rows": 8760,
-  "mae_kw": 0.7453,
-  "rmse_kw": 1.228,
-  "r2": 0.9972
-}
