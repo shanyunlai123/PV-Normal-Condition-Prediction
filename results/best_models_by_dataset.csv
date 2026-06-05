@@ -1,0 +1,4 @@
+dataset,model,rows,mae,rmse,r2
+all_weather,Gradient Boosting,8382,0.7014,1.155,0.9973
+cloudy,Lasso Regression,1263,1.3266,1.6843,0.9738
+sunny,Random Forest,1263,1.1837,1.5607,0.9927

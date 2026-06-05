@@ -1,10 +1,28 @@
-model,mae,rmse,r2
-Gradient Boosting,0.7014,1.155,0.9973
-Extra Trees,0.7081,1.1841,0.9972
-Random Forest,0.7175,1.2051,0.9971
-SVR,0.82,1.2432,0.9969
-Decision Tree,0.9495,1.593,0.9949
-Linear Regression,1.1295,1.5966,0.9949
-Lasso Regression,1.1298,1.5968,0.9949
-Ridge Regression,1.13,1.5968,0.9949
-KNN Regressor,1.7495,2.4877,0.9876
+dataset,model,rows,mae,rmse,r2
+all_weather,Gradient Boosting,8382,0.7014,1.155,0.9973
+all_weather,Extra Trees,8382,0.7081,1.1841,0.9972
+all_weather,Random Forest,8382,0.7175,1.2051,0.9971
+all_weather,SVR,8382,0.82,1.2432,0.9969
+all_weather,Decision Tree,8382,0.9495,1.593,0.9949
+all_weather,Linear Regression,8382,1.1295,1.5966,0.9949
+all_weather,Ridge Regression,8382,1.13,1.5968,0.9949
+all_weather,Lasso Regression,8382,1.1298,1.5968,0.9949
+all_weather,KNN Regressor,8382,1.7495,2.4877,0.9876
+cloudy,Lasso Regression,1263,1.3266,1.6843,0.9738
+cloudy,Ridge Regression,1263,1.328,1.6852,0.9738
+cloudy,Linear Regression,1263,1.3283,1.6992,0.9733
+cloudy,Gradient Boosting,1263,1.3621,1.7001,0.9733
+cloudy,Random Forest,1263,1.3595,1.7305,0.9724
+cloudy,Extra Trees,1263,1.4007,1.7605,0.9714
+cloudy,SVR,1263,1.5831,1.996,0.9632
+cloudy,Decision Tree,1263,1.7403,2.2234,0.9544
+cloudy,KNN Regressor,1263,2.2131,2.7844,0.9284
+sunny,Random Forest,1263,1.1837,1.5607,0.9927
+sunny,Extra Trees,1263,1.1842,1.5628,0.9927
+sunny,Gradient Boosting,1263,1.1947,1.5687,0.9927
+sunny,Ridge Regression,1263,1.2717,1.6197,0.9922
+sunny,Lasso Regression,1263,1.2735,1.6202,0.9922
+sunny,Linear Regression,1263,1.2759,1.6216,0.9921
+sunny,SVR,1263,1.3534,1.7109,0.9913
+sunny,Decision Tree,1263,1.612,2.0272,0.9877
+sunny,KNN Regressor,1263,2.5693,3.2194,0.969

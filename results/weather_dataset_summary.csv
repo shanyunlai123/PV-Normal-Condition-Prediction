@@ -1,0 +1,5 @@
+weather_condition,rows,avg_irradiance,avg_power_output,max_power_output
+cloudy,1263,275.08,26.34,47.206
+moderate,1294,407.3,38.281,67.38
+night_or_low_power,4562,9.846,0.73,11.124
+sunny,1263,560.679,51.514,87.088

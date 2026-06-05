@@ -1,16 +1,16 @@
 # PV Normal Condition Prediction - Progress Package
 
-这个仓库用于展示“正常状态下光伏发电功率预测”项目的阶段性进度。当前版本重点展示：数据样本、真实数据来源、数据预处理成果，以及多个 AI 回归模型的初步训练和对比。
+这个仓库用于展示“正常状态下光伏发电功率预测”项目的阶段性进度。当前版本已经从简单 baseline 升级为：数据预处理、真实数据样本、晴天/阴天数据集划分，以及不同模型在不同天气数据集上的对比实验。
 
 ## 当前进度
 
 1. 已准备光伏数据样本。
 2. 已找到真实光伏数据样本。
-3. 已完成缺失值检查。
-4. 已完成异常值删除。
-5. 已完成数据分布可视化。
-6. 已输出清洗后的 `clean_dataset.csv`。
-7. 已添加多个 AI 模型进行训练和比较。
+3. 已完成缺失值检查和异常值删除。
+4. 已完成数据分布可视化。
+5. 已输出清洗后的 `clean_dataset.csv`。
+6. 已构建晴天、阴天和全量天气数据集。
+7. 已在不同数据集上训练多个 AI 回归模型并比较结果。
 
 ## 仓库结构
 
@@ -19,6 +19,10 @@ PV/
   data/
     simulated_pv_data.csv
     clean_dataset.csv
+    weather_datasets/
+      all_weather_dataset.csv
+      sunny_dataset.csv
+      cloudy_dataset.csv
     real_samples/
       README.md
       pvdaq_system_10_2023_01_01.csv
@@ -28,12 +32,16 @@ PV/
   results/
     missing_values.csv
     data_distribution.png
+    weather_dataset_summary.csv
+    weather_dataset_distribution.png
     model_metrics.csv
+    best_models_by_dataset.csv
     model_comparison.png
     predicted_vs_actual.png
     prediction_results.csv
   src/
     preprocess_data.py
+    create_weather_datasets.py
     train_model.py
   README.md
   requirements.txt
@@ -54,15 +62,38 @@ docs/progress_report.md
 3. 缺失值检查：`results/missing_values.csv`
 4. 数据预处理代码：`src/preprocess_data.py`
 5. 清洗后数据：`data/clean_dataset.csv`
-6. 数据分布图：`results/data_distribution.png`
-7. 多模型训练代码：`src/train_model.py`
-8. 模型指标对比：`results/model_metrics.csv`
-9. 模型比较图：`results/model_comparison.png`
-10. 预测效果图：`results/predicted_vs_actual.png`
+6. 晴天/阴天数据集划分代码：`src/create_weather_datasets.py`
+7. 晴天数据集：`data/weather_datasets/sunny_dataset.csv`
+8. 阴天数据集：`data/weather_datasets/cloudy_dataset.csv`
+9. 天气数据集统计：`results/weather_dataset_summary.csv`
+10. 天气数据集分布图：`results/weather_dataset_distribution.png`
+11. 多模型训练代码：`src/train_model.py`
+12. 模型指标对比：`results/model_metrics.csv`
+13. 各数据集最佳模型：`results/best_models_by_dataset.csv`
+14. 模型比较图：`results/model_comparison.png`
+15. 预测效果图：`results/predicted_vs_actual.png`
+
+## 晴天和阴天数据集怎么划分
+
+`src/create_weather_datasets.py` 会从清洗后的数据中筛选白天发电记录，然后按同一小时内的辐照度分位数划分天气条件。
+
+这样做的原因是：早上和傍晚的辐照度天然较低，不能简单用一个固定辐照度阈值判断阴天。因此脚本会把同一小时的数据放在一起比较：
+
+- 辐照度处于同小时较高区间：`sunny`
+- 辐照度处于同小时较低区间：`cloudy`
+- 中间部分：`moderate`
+- 夜间或低发电数据：`night_or_low_power`
+
+当前数据集统计：
+
+```text
+sunny:  1,263 rows, average irradiance 560.679
+cloudy: 1,263 rows, average irradiance 275.080
+```
 
 ## 训练了哪些模型
 
-当前 `src/train_model.py` 会训练并比较这些模型：
+当前 `src/train_model.py` 会在 `all_weather`、`sunny`、`cloudy` 三个数据集上分别训练并比较这些模型：
 
 - Linear Regression
 - Ridge Regression
@@ -79,6 +110,18 @@ docs/progress_report.md
 - `MAE`: 平均绝对误差，越小越好。
 - `RMSE`: 均方根误差，越小越好。
 - `R2`: 决定系数，越接近 1 越好。
+
+## 当前最佳结果
+
+当前结果显示，不同天气数据集上的最佳模型并不完全相同：
+
+```text
+all_weather: Gradient Boosting, RMSE 1.1550, R2 0.9973
+sunny:       Random Forest,     RMSE 1.5607, R2 0.9927
+cloudy:      Lasso Regression,  RMSE 1.6843, R2 0.9738
+```
+
+这说明项目已经不只是简单训练一个模型，而是在比较不同天气场景下模型表现的差异。
 
 ## 真实数据来源
 
@@ -115,7 +158,13 @@ pip install -r requirements.txt
 python src/preprocess_data.py
 ```
 
-运行多模型训练和比较：
+创建晴天/阴天数据集：
+
+```bash
+python src/create_weather_datasets.py
+```
+
+运行多数据集、多模型训练和比较：
 
 ```bash
 python src/train_model.py
@@ -125,4 +174,4 @@ python src/train_model.py
 
 可以这样说：
 
-> 我目前已经完成了光伏数据样本准备和数据预处理。项目中保留了一个模拟数据样本用于流程验证，同时也找到了 NREL / DOE PVDAQ 的真实光伏数据样本。预处理阶段已经完成缺失值检查、异常值删除和数据分布可视化，并输出了 clean_dataset.csv。现在模型训练部分已经从两个 baseline 扩展到多个回归模型，包括线性模型、树模型、集成模型、KNN 和 SVR。下一步我会分析不同模型的误差表现，并把真实数据字段统一后接入训练流程。
+> 我目前已经完成了光伏数据样本准备和数据预处理，并且不只是使用一个简单数据集训练模型。我把清洗后的数据进一步划分成全量天气、晴天和阴天数据集，然后在每个数据集上分别训练 Linear Regression、Random Forest、Gradient Boosting、SVR 等多个模型。初步结果显示，不同天气条件下最佳模型不同，这说明后续可以针对不同天气场景建立更细分的预测模型。
