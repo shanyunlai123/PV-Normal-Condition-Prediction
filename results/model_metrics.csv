@@ -1,3 +1,10 @@
 model,mae,rmse,r2
+Gradient Boosting,0.7014,1.155,0.9973
+Extra Trees,0.7081,1.1841,0.9972
 Random Forest,0.7175,1.2051,0.9971
+SVR,0.82,1.2432,0.9969
+Decision Tree,0.9495,1.593,0.9949
 Linear Regression,1.1295,1.5966,0.9949
+Lasso Regression,1.1298,1.5968,0.9949
+Ridge Regression,1.13,1.5968,0.9949
+KNN Regressor,1.7495,2.4877,0.9876

@@ -1,6 +1,6 @@
 # PV Project Progress Report
 
-这个文件用于展示当前项目每个阶段已经完成的成果。它适合下周五给老师检查进度时使用。
+这个文件用于展示当前项目每个阶段已经完成的成果，适合给老师检查进度时使用。
 
 ## 1. 数据样本准备
 
@@ -82,22 +82,53 @@
 - 文件：`data/clean_dataset.csv`
 - 用途：后续 AI 模型训练的主要输入数据。
 
-训练脚本 `src/train_model.py` 已经设置为：如果存在 `clean_dataset.csv`，就优先使用清洗后的数据训练模型。
+训练脚本 `src/train_model.py` 已经设置为使用 `clean_dataset.csv` 进行模型训练。
 
-## 6. AI 模型初步训练
+## 6. 多模型初步训练与比较
 
 - 脚本：`src/train_model.py`
 - 当前模型：
   - Linear Regression
+  - Ridge Regression
+  - Lasso Regression
+  - KNN Regressor
+  - SVR
+  - Decision Tree
   - Random Forest
+  - Extra Trees
+  - Gradient Boosting
 - 输出：
   - `results/model_metrics.csv`
+  - `results/model_comparison.png`
   - `results/prediction_results.csv`
   - `results/predicted_vs_actual.png`
 
-当前阶段模型只是 baseline，用于证明项目已经进入 AI 建模阶段。后续还可以继续调参、换真实数据、增加更多天气特征。
+当前阶段模型属于初步训练和对比，用于观察不同算法在光伏功率预测任务上的表现。后续还可以继续调参、换真实数据、增加更多天气特征。
 
+## 7. 当前模型比较结果
 
+当前结果显示，`Gradient Boosting` 在测试集上表现最好：
+
+- MAE: 0.7014
+- RMSE: 1.1550
+- R2: 0.9973
+
+模型对比图可以查看：
+
+```text
+results/model_comparison.png
+```
+
+## 8. 汇报话术
+
+可以这样讲：
+
+> 我目前已经完成了光伏数据样本准备和数据预处理。项目中先用模拟数据保证完整流程可以运行，同时我也找到了 NREL / DOE PVDAQ 的真实光伏数据样本。预处理阶段已经完成缺失值检查、异常值删除和数据分布可视化，并输出了 clean_dataset.csv。现在模型训练已经从 baseline 扩展到多模型比较，包括线性模型、树模型、集成模型、KNN 和 SVR。当前 Gradient Boosting 表现最好，下一步会把真实数据进一步整理成统一字段，并继续优化模型效果。
+
+## 9. 下一步计划
+
+1. 把 PVDAQ 真实数据字段映射到项目统一字段。
+2. 寻找或补充真实数据中的湿度、风速字段。
 3. 使用真实数据训练初版模型。
 4. 对比模拟数据模型和真实数据模型的效果。
 5. 分析预测值与实际值差异，用于后续异常检测。

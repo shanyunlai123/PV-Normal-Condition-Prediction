@@ -4,12 +4,19 @@ import joblib
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from sklearn.ensemble import ExtraTreesRegressor
+from sklearn.ensemble import GradientBoostingRegressor
 from sklearn.ensemble import RandomForestRegressor
+from sklearn.linear_model import Lasso
 from sklearn.linear_model import LinearRegression
+from sklearn.linear_model import Ridge
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from sklearn.model_selection import train_test_split
+from sklearn.neighbors import KNeighborsRegressor
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
+from sklearn.svm import SVR
+from sklearn.tree import DecisionTreeRegressor
 
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
@@ -19,6 +26,7 @@ MODELS_DIR = ROOT_DIR / "models"
 
 PREDICTION_RESULTS_PATH = RESULTS_DIR / "prediction_results.csv"
 PREDICTION_PLOT_PATH = RESULTS_DIR / "predicted_vs_actual.png"
+MODEL_COMPARISON_PLOT_PATH = RESULTS_DIR / "model_comparison.png"
 MODEL_METRICS_PATH = RESULTS_DIR / "model_metrics.csv"
 BEST_MODEL_PATH = MODELS_DIR / "best_pv_power_model.joblib"
 
@@ -45,6 +53,7 @@ def load_or_create_data() -> pd.DataFrame:
 
 
 def build_models() -> dict:
+    """Build different regression models for comparison."""
     return {
         "Linear Regression": Pipeline(
             steps=[
@@ -52,11 +61,51 @@ def build_models() -> dict:
                 ("model", LinearRegression()),
             ]
         ),
+        "Ridge Regression": Pipeline(
+            steps=[
+                ("scaler", StandardScaler()),
+                ("model", Ridge(alpha=1.0)),
+            ]
+        ),
+        "Lasso Regression": Pipeline(
+            steps=[
+                ("scaler", StandardScaler()),
+                ("model", Lasso(alpha=0.001, max_iter=10000)),
+            ]
+        ),
+        "KNN Regressor": Pipeline(
+            steps=[
+                ("scaler", StandardScaler()),
+                ("model", KNeighborsRegressor(n_neighbors=8)),
+            ]
+        ),
+        "SVR": Pipeline(
+            steps=[
+                ("scaler", StandardScaler()),
+                ("model", SVR(kernel="rbf", C=50, epsilon=0.2)),
+            ]
+        ),
+        "Decision Tree": DecisionTreeRegressor(
+            max_depth=12,
+            random_state=42,
+        ),
         "Random Forest": RandomForestRegressor(
             n_estimators=250,
             max_depth=14,
             random_state=42,
             n_jobs=-1,
+        ),
+        "Extra Trees": ExtraTreesRegressor(
+            n_estimators=250,
+            max_depth=14,
+            random_state=42,
+            n_jobs=-1,
+        ),
+        "Gradient Boosting": GradientBoostingRegressor(
+            n_estimators=250,
+            learning_rate=0.05,
+            max_depth=4,
+            random_state=42,
         ),
     }
 
@@ -71,6 +120,7 @@ def evaluate_model(model_name: str, y_true: pd.Series, y_pred: np.ndarray) -> di
 
 
 def save_prediction_plot(results: pd.DataFrame) -> None:
+    """Plot predicted values against actual values for every model."""
     plt.figure(figsize=(9, 6))
 
     for model_name, model_results in results.groupby("model"):
@@ -96,6 +146,32 @@ def save_prediction_plot(results: pd.DataFrame) -> None:
     plt.close()
 
 
+def save_model_comparison_plot(metrics_df: pd.DataFrame) -> None:
+    """Create a compact chart to compare model errors and R2 scores."""
+    sorted_metrics = metrics_df.sort_values("rmse", ascending=True)
+    fig, axes = plt.subplots(1, 3, figsize=(16, 5))
+
+    axes[0].barh(sorted_metrics["model"], sorted_metrics["mae"], color="#4c78a8")
+    axes[0].set_title("MAE by Model")
+    axes[0].set_xlabel("MAE (kW)")
+    axes[0].invert_yaxis()
+
+    axes[1].barh(sorted_metrics["model"], sorted_metrics["rmse"], color="#f58518")
+    axes[1].set_title("RMSE by Model")
+    axes[1].set_xlabel("RMSE (kW)")
+    axes[1].invert_yaxis()
+
+    axes[2].barh(sorted_metrics["model"], sorted_metrics["r2"], color="#54a24b")
+    axes[2].set_title("R2 by Model")
+    axes[2].set_xlabel("R2 score")
+    axes[2].invert_yaxis()
+
+    fig.suptitle("PV Power Prediction Model Comparison")
+    plt.tight_layout()
+    plt.savefig(MODEL_COMPARISON_PLOT_PATH, dpi=160)
+    plt.close()
+
+
 def main() -> None:
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     MODELS_DIR.mkdir(parents=True, exist_ok=True)
@@ -116,6 +192,7 @@ def main() -> None:
     trained_models = {}
 
     for model_name, model in build_models().items():
+        print(f"Training {model_name}...")
         model.fit(X_train, y_train)
         y_pred = np.clip(model.predict(X_test), 0, None)
 
@@ -134,6 +211,7 @@ def main() -> None:
     metrics_df.to_csv(MODEL_METRICS_PATH, index=False)
     prediction_results.to_csv(PREDICTION_RESULTS_PATH, index=False)
     save_prediction_plot(prediction_results)
+    save_model_comparison_plot(metrics_df)
 
     best_model_name = metrics_df.iloc[0]["model"]
     joblib.dump(
@@ -150,6 +228,7 @@ def main() -> None:
     print(metrics_df.to_string(index=False))
     print(f"Saved prediction results: {PREDICTION_RESULTS_PATH}")
     print(f"Saved prediction plot: {PREDICTION_PLOT_PATH}")
+    print(f"Saved model comparison plot: {MODEL_COMPARISON_PLOT_PATH}")
     print(f"Saved model metrics: {MODEL_METRICS_PATH}")
     print(f"Saved best model: {BEST_MODEL_PATH}")
 
