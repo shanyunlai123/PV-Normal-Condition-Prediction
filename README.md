@@ -1,6 +1,6 @@
 # PV Normal Condition Prediction - Progress Package
 
-这个仓库目前只保留下周五进度检查需要展示的内容：数据样本、真实数据来源、数据预处理成果，以及 AI 模型刚开始训练的 baseline 结果。
+这个仓库需要展示的内容：数据样本、真实数据来源、数据预处理成果，以及 AI 模型刚开始训练的 baseline 结果。
 
 ## 当前进度
 
@@ -46,7 +46,6 @@ PV/
 docs/progress_report.md
 ```
 
-可以按这个顺序给老师看：
 
 1. 数据样本：`data/simulated_pv_data.csv`
 2. 真实数据样本：`data/real_samples/pvdaq_system_10_2023_01_01.csv`
@@ -99,8 +98,3 @@ python src/preprocess_data.py
 python src/train_model.py
 ```
 
-## 下周五汇报话术
-
-可以这样说：
-
-> 我目前已经完成了光伏数据样本准备和数据预处理。项目中保留了一个模拟数据样本用于流程验证，同时也找到了 NREL / DOE PVDAQ 的真实光伏数据样本。预处理阶段已经完成缺失值检查、异常值删除和数据分布可视化，并输出了 clean_dataset.csv。AI 模型现在刚进入初步训练阶段，已经用 Linear Regression 和 Random Forest 做了 baseline，下一步会把真实数据字段进一步统一到训练流程里。
