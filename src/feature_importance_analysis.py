@@ -1,162 +1,80 @@
+"""Analyze feature importance for the best tuned real-data model."""
+
 from pathlib import Path
 
 import joblib
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from sklearn.pipeline import Pipeline
 
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
-MODEL_PATH = ROOT_DIR / "models" / "best_pv_power_model.joblib"
+MODEL_PATH = ROOT_DIR / "models" / "best_random_forest.pkl"
+DATA_PATH = ROOT_DIR / "data" / "processed" / "all_weather_dataset.csv"
 RESULTS_DIR = ROOT_DIR / "results"
 CSV_PATH = RESULTS_DIR / "feature_importance.csv"
 PLOT_PATH = RESULTS_DIR / "feature_importance.png"
 
-# Group the model's detailed features into the four variables requested for analysis.
-FEATURE_GROUPS = {
-    "irradiance": ["irradiance"],
-    "temperature": ["ambient_temperature", "module_temperature"],
-    "voltage": ["voltage", "ac_voltage", "dc_voltage"],
-    "current": ["current", "ac_current", "dc_current"],
-}
-
-TREE_MODEL_NAMES = {"Random Forest", "Gradient Boosting", "Extra Trees", "Decision Tree"}
-LINEAR_MODEL_NAMES = {"Linear Regression", "Lasso Regression", "Ridge Regression"}
+FEATURES = ["irradiance", "temperature", "voltage", "current"]
+TARGET = "power"
 
 
-def load_best_model() -> dict:
-    """Load the best trained model and its metadata."""
+def main() -> None:
+    """Extract and plot feature importance from the tuned Random Forest model."""
     if not MODEL_PATH.exists():
         raise FileNotFoundError(
-            f"Missing best model: {MODEL_PATH}. Run `python src/train_model.py` first."
+            f"Missing tuned model: {MODEL_PATH}. Run `python scripts/hyperparameter_tuning.py` first."
         )
+    if not DATA_PATH.exists():
+        raise FileNotFoundError(f"Missing processed data: {DATA_PATH}")
 
-    return joblib.load(MODEL_PATH)
+    model = joblib.load(MODEL_PATH)
+    df = pd.read_csv(DATA_PATH).dropna(subset=FEATURES + [TARGET])
 
+    # Refit the already selected and tuned model on the complete normal dataset.
+    model.fit(df[FEATURES], df[TARGET])
 
-def unwrap_model(model):
-    """Return the final estimator when the saved model is a sklearn Pipeline."""
-    if isinstance(model, Pipeline):
-        return model.steps[-1][1]
-    return model
-
-
-def extract_raw_importance(bundle: dict) -> tuple[pd.DataFrame, str]:
-    """Extract feature importance from a tree model or coefficients from a linear model."""
-    model_name = bundle["model_name"]
-    feature_columns = bundle["feature_columns"]
-    estimator = unwrap_model(bundle["model"])
-
-    if model_name in TREE_MODEL_NAMES and hasattr(estimator, "feature_importances_"):
-        values = np.asarray(estimator.feature_importances_, dtype=float)
+    if hasattr(model, "feature_importances_"):
+        values = np.asarray(model.feature_importances_, dtype=float)
         method = "feature_importances_"
-    elif model_name in LINEAR_MODEL_NAMES and hasattr(estimator, "coef_"):
-        # Absolute coefficients are used because this analysis compares influence magnitude.
-        coefficients = np.ravel(np.asarray(estimator.coef_, dtype=float))
-        values = np.abs(coefficients)
-        method = "absolute_model_coefficients"
+    elif hasattr(model, "coef_"):
+        values = np.abs(np.ravel(np.asarray(model.coef_, dtype=float)))
+        method = "absolute_coefficients"
     else:
-        raise ValueError(
-            f"Feature importance analysis is not supported for best model: {model_name}"
-        )
+        raise ValueError("The selected model does not expose supported importance values.")
 
-    if len(values) != len(feature_columns):
-        raise ValueError("The number of model importance values does not match feature columns.")
-
-    raw_df = pd.DataFrame(
+    result = pd.DataFrame(
         {
-            "source_feature": feature_columns,
-            "raw_importance": values,
+            "feature": FEATURES,
+            "importance": values,
+            "importance_percent": values / values.sum() * 100,
+            "model": type(model).__name__,
+            "analysis_method": method,
         }
-    )
-    return raw_df, method
+    ).sort_values("importance", ascending=False)
+    result.to_csv(CSV_PATH, index=False)
 
-
-def aggregate_requested_variables(raw_df: pd.DataFrame, bundle: dict, method: str) -> pd.DataFrame:
-    """Aggregate detailed model features into irradiance, temperature, voltage, and current."""
-    rows = []
-
-    for variable, possible_features in FEATURE_GROUPS.items():
-        matched = raw_df[raw_df["source_feature"].isin(possible_features)]
-        rows.append(
-            {
-                "variable": variable,
-                "importance": float(matched["raw_importance"].sum()),
-                "used_in_model": not matched.empty,
-                "source_features": ", ".join(matched["source_feature"].tolist()) or "not used",
-                "model_name": bundle["model_name"],
-                "dataset": bundle.get("dataset", "unknown"),
-                "analysis_method": method,
-            }
-        )
-
-    result = pd.DataFrame(rows)
-    used_total = result.loc[result["used_in_model"], "importance"].sum()
-    result["importance_percent"] = np.where(
-        result["used_in_model"] & (used_total > 0),
-        result["importance"] / used_total * 100,
-        0.0,
-    )
-
-    return result.sort_values(
-        ["used_in_model", "importance"],
-        ascending=[False, False],
-    ).reset_index(drop=True)
-
-
-def save_plot(result: pd.DataFrame, bundle: dict) -> None:
-    """Create a matplotlib feature importance chart."""
-    plot_df = result.sort_values("importance", ascending=True)
-    colors = ["#4c78a8" if used else "#b8b8b8" for used in plot_df["used_in_model"]]
-
+    plot_df = result.sort_values("importance")
     plt.figure(figsize=(9, 5.5))
-    bars = plt.barh(plot_df["variable"], plot_df["importance_percent"], color=colors)
-
-    for bar, (_, row) in zip(bars, plot_df.iterrows()):
-        if row["used_in_model"]:
-            label = f'{row["importance_percent"]:.1f}%'
-        else:
-            label = "not used in model"
+    bars = plt.barh(plot_df["feature"], plot_df["importance_percent"], color="#4c78a8")
+    for bar, value in zip(bars, plot_df["importance_percent"]):
         plt.text(
-            bar.get_width() + 0.8,
+            bar.get_width() + 0.5,
             bar.get_y() + bar.get_height() / 2,
-            label,
+            f"{value:.2f}%",
             va="center",
-            fontsize=9,
         )
-
-    plt.xlabel("Normalized importance among requested variables (%)")
-    plt.ylabel("Variable")
-    plt.title(
-        f'Feature Importance Analysis\nBest model: {bundle["model_name"]} '
-        f'({bundle.get("dataset", "unknown")})'
-    )
-    plt.xlim(0, max(105, float(plot_df["importance_percent"].max()) + 15))
+    plt.xlabel("Feature importance (%)")
+    plt.ylabel("Feature")
+    plt.title("Feature Importance for Tuned Real-Data Random Forest")
+    plt.xlim(0, float(plot_df["importance_percent"].max()) + 12)
     plt.tight_layout()
     plt.savefig(PLOT_PATH, dpi=160)
     plt.close()
 
-
-def main() -> None:
-    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-
-    bundle = load_best_model()
-    raw_df, method = extract_raw_importance(bundle)
-    result = aggregate_requested_variables(raw_df, bundle, method)
-
-    result.to_csv(CSV_PATH, index=False)
-    save_plot(result, bundle)
-
-    used_result = result[result["used_in_model"]]
-    most_important = used_result.iloc[0]
-
-    print("Feature importance analysis:")
+    print("Feature importance:")
     print(result.to_string(index=False))
-    print(
-        f'Most influential requested variable: {most_important["variable"]} '
-        f'({most_important["importance_percent"]:.2f}%)'
-    )
+    print(f"Most important feature: {result.iloc[0]['feature']}")
     print(f"Saved feature importance CSV: {CSV_PATH}")
     print(f"Saved feature importance plot: {PLOT_PATH}")
 

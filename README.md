@@ -48,6 +48,13 @@ PV/
     weather_analysis.csv
     weather_comparison.png
     weather_analysis_conclusion.txt
+    correlation_matrix.csv
+    correlation_heatmap.png
+    actual_vs_predicted.png
+    residual_plot.png
+    error_distribution.png
+    prediction_error_summary.csv
+    predicted_power_baseline.csv
   src/
     preprocess_data.py
     create_weather_datasets.py
@@ -60,6 +67,8 @@ PV/
     create_operating_scenarios.py
     cross_validation_analysis.py
     hyperparameter_tuning.py
+    correlation_analysis.py
+    prediction_error_analysis.py
   README.md
   requirements.txt
 ```
@@ -103,7 +112,7 @@ docs/progress_report.md
 data/real_samples/pvdaq_system_10_2023_01_01.csv
 ```
 
-该真实样本包含交流功率、直流功率、环境温度、组件温度与阵列平面光照强度等字段。真实样本中的 Voltage（电压）与 Current（电流）字段尚未映射进入当前训练数据，因此当前模型无法可靠计算这两个特征的重要性。
+该真实样本包含交流功率、直流功率、环境温度、组件温度与阵列平面光照强度等字段。新增真实数据处理流程已经将 Voltage（电压）与 Current（电流）映射到统一训练数据，可用于真实数据模型与异常检测分析。
 
 ## 数据字段说明
 
@@ -434,34 +443,26 @@ Feature Importance Analysis（特征重要性分析）用于解释不同输入�
 - `temperature` 由 `ambient_temperature` 和 `module_temperature` 的重要性合并得到。
 - 所有输出按重要性自动排序。
 
-当前整体最佳模型 Gradient Boosting 的特征重要性结果如下：
+针对新增真实 PVDAQ 数据，本项目使用已调优的 Random Forest 对 Irradiance（光照强度）、Temperature（温度）、Voltage（电压）和 Current（电流）进行特征重要性分析。当前结果如下：
 
 ```text
-irradiance:  99.87%
-temperature:  0.13%
-voltage:      not used in current model
-current:      not used in current model
+current:      93.14%
+irradiance:    5.58%
+temperature:   1.20%
+voltage:       0.08%
 ```
 
-各天气数据集最佳模型的特征重要性证据如下：
+Current（电流）是当前真实数据模型中最重要的特征。该结果符合电气物理规律，因为交流功率与电压、电流直接相关；在电压相对稳定时，电流变化会直接反映功率变化。Irradiance 仍然是最重要的环境特征，因为光照强度决定了光伏组件可转换的太阳能量。
 
-| Dataset | Best model | Irradiance importance | Temperature importance | Method |
-|---|---|---:|---:|---|
-| all_weather | Gradient Boosting | 99.88% | 0.12% | `feature_importances_` |
-| sunny | Random Forest | 99.39% | 0.61% | `feature_importances_` |
-| cloudy | Lasso Regression | 93.96% | 6.04% | standardized absolute coefficients |
+Current 的高重要性也需要谨慎解释：由于电流与功率存在非常直接的物理关系，在模块2异常检测中，如果故障同时改变电流和功率，模型可能将部分异常解释为正常功率变化。因此，模块2应结合功率残差、天气条件与电气规则共同判断异常。
 
-Irradiance（光照强度）是三个数据集最佳模型中最重要的已使用特征。这一结果符合光伏系统物理规律，因为到达光伏组件的太阳能量直接决定可转换的电能。Temperature（温度）具有次要但合理的影响，因为组件温度变化会影响光电转换效率。
+原有模拟天气数据分析仍表明 Irradiance 是主要环境驱动因素；新增真实数据分析进一步说明 Current 和 Voltage 能够增强模型对实际电气输出的解释能力。
 
-阴天模型对温度的相对重要性为 6.04%，高于晴天和全天气模型。这说明阴天条件下除光照强度外，次要因素对发电功率变化的解释作用更加明显，也为阴天预测难度较高提供了论据。
-
-Voltage（电压）和 Current（电流）尚未作为当前训练数据的输入特征，因此不能可靠计算其重要性。结果文件将它们标记为 `used_in_model=False`，而不是给出缺乏证据的解释。
-
-下面的图展示了不同天气数据集最佳模型的特征重要性对比。
+下面的图展示了原有天气数据集最佳模型的特征重要性对比。
 
 ![特征重要性对比](results/feature_importance_comparison.png)
 
-下面的图展示了当前整体最佳模型的特征重要性分析结果。
+下面的图展示了已调优真实数据 Random Forest 的特征重要性分析结果。
 
 ![整体最佳模型特征重要性](results/feature_importance.png)
 
@@ -482,6 +483,85 @@ python src/feature_importance_analysis.py
 
 ```bash
 python scripts/feature_importance_analysis.py
+```
+
+# 相关性分析
+
+Correlation Analysis（相关性分析）使用真实 PVDAQ 统一数据，计算 Irradiance、Temperature、Voltage、Current 与 Power 之间的 Pearson Correlation（皮尔逊相关系数）。
+
+与 Power 的相关性结果如下：
+
+| 特征 | 与 Power 的相关系数 |
+|---|---:|
+| Irradiance | 0.9107 |
+| Current | 0.8493 |
+| Temperature | 0.4078 |
+| Voltage | 0.3544 |
+
+Irradiance 与 Power 的线性相关性最高，说明太阳能输入仍然是发电功率变化的主要外部驱动因素。Current 与 Power 也具有很强相关性，符合功率与电流之间的直接电气关系。Temperature 与 Voltage 的相关性较弱，但仍能够提供次要运行状态信息。
+
+下面的热力图展示了真实 PVDAQ 模型变量之间的相关关系。
+
+![真实 PVDAQ 变量相关性热力图](results/correlation_heatmap.png)
+
+输出文件：
+
+- `results/correlation_matrix.csv`
+- `results/correlation_heatmap.png`
+
+运行相关性分析：
+
+```bash
+python scripts/correlation_analysis.py
+```
+
+# 预测误差分析
+
+Prediction Error Analysis（预测误差分析）使用已调优 Random Forest 和 5-fold Out-of-Fold Prediction（折外预测）。每条数据均由未使用该记录训练的模型生成预测，因此误差结果比训练集内预测更可靠。
+
+整体误差结果如下：
+
+```text
+MAE:  0.7328
+RMSE: 2.7112
+R²:   0.9997
+Mean residual: -0.0365
+```
+
+整体平均残差接近 0，说明模型没有明显的全局系统性高估或低估。然而，不同运行条件下的误差差异明显：
+
+| 天气条件 | MAE | RMSE | Mean residual |
+|---|---:|---:|---:|
+| Night or low power | 0.0178 | 0.2116 | -0.0063 |
+| Cloudy | 1.2366 | 2.4691 | -0.1207 |
+| Moderate | 2.2358 | 4.0066 | 0.5216 |
+| Sunny | 6.6643 | 10.7956 | -1.0945 |
+
+Sunny 高功率场景的预测误差最大，主要原因包括高功率区间样本较少、功率绝对变化范围更大，以及不同站点在高功率运行时存在差异。Sunny 的平均残差为负，表示模型在该场景存在轻微整体高估；Moderate 的平均残差为正，表示存在轻微整体低估。
+
+下面的图展示了折外预测值与实际值的关系。
+
+![实际功率与预测功率](results/actual_vs_predicted.png)
+
+下面的残差图用于检查模型是否存在系统性误差。
+
+![预测残差图](results/residual_plot.png)
+
+下面的直方图展示了预测误差分布。
+
+![预测误差分布](results/error_distribution.png)
+
+输出文件：
+
+- `results/actual_vs_predicted.png`
+- `results/residual_plot.png`
+- `results/error_distribution.png`
+- `results/prediction_error_summary.csv`
+
+运行预测误差分析：
+
+```bash
+python scripts/prediction_error_analysis.py
 ```
 
 # 天气影响分析
@@ -552,16 +632,48 @@ prediction residual = actual power - expected normal power
 
 扩展场景分类也能降低异常检测误报。例如，低光照、高温或 Rainy proxy 场景下的正常功率下降不应直接判定为设备故障，而应与对应场景的正常预测基准进行比较。
 
+项目已经生成可直接供模块2使用的正常功率基线：
+
+```text
+results/predicted_power_baseline.csv
+```
+
+该文件由折外预测生成，核心字段包括：
+
+- `time`
+- `actual_power`
+- `predicted_power`
+- `prediction_error`
+
+模块2可以根据 `prediction_error` 的绝对值和持续时间设置异常阈值。单次较大误差可能来自传感器噪声或天气突变，而持续的大幅误差更可能表示遮挡、积灰、逆变器问题或其他故障。
+
+# 关键发现（Key Findings）
+
+1. **哪个模型表现最好？**
+   在真实 PVDAQ 数据的交叉验证中，Random Forest 的跨场景平均 CV RMSE 最低，为 `4.2255`；其调优后 All Weather CV RMSE 为 `2.6887`。因此，Random Forest 是当前真实数据管线中整体表现最好的模型。
+
+2. **哪个特征最重要？**
+   在已调优的真实数据 Random Forest 中，Current 的特征重要性最高，为 `93.14%`。Irradiance 是最重要的环境特征，并且与 Power 的相关系数最高，为 `0.9107`。
+
+3. **天气是否影响模型性能？**
+   是。交叉验证与折外误差结果均显示，不同天气和运行场景的最佳模型、MAE 与 RMSE 并不一致。
+
+4. **为什么天气影响模型性能？**
+   不同天气改变光照强度水平、波动程度和有效样本分布。高功率 Sunny 场景样本较少且绝对功率变化更大，因此当前真实数据模型在 Sunny 场景的误差最高。
+
+5. **模块1如何支持模块2？**
+   模块1提供每个时间点的正常预期功率和折外预测残差。模块2可以将持续的大残差作为潜在异常信号，并结合天气场景、电压和电流进一步判断故障类型。
+
 # 项目结论
 
 本项目完成了从数据准备、数据预处理、天气分类、多模型训练、模型评估到结果解释的完整流程。
 
 主要结论如下：
 
-1. Irradiance（光照强度）是当前正常发电功率预测中最重要的输入特征，三个天气数据集最佳模型中的相对重要性均超过 93%。
-2. 不同天气条件适合不同模型：全天气条件下 Gradient Boosting 最佳，晴天条件下 Random Forest 最佳，阴天条件下 Lasso Regression 最佳。
-3. 阴天数据具有更高的相对光照波动和更低的光照强度—发电功率相关性，因此其预测误差更高、预测难度更大。
-4. 模块1建立的正常功率预测能够为模块2提供异常检测基准，预测值与实际值之间的较大持续偏差可作为潜在异常信号。
+1. 原有模拟天气数据分析表明 Irradiance 是主要环境驱动因素；新增真实电气数据分析表明 Current 是当前真实数据模型中最重要的直接预测特征。
+2. 真实数据交叉验证表明 Random Forest 整体平均表现最佳，而不同天气和温度场景仍可能偏好不同模型。
+3. 相关性、交叉验证和预测误差结果共同证明，天气条件、样本分布与功率范围会影响模型预测性能。
+4. 模块1已经生成折外预测正常功率基线，能够为模块2提供更可靠的异常检测输入。
 
 本项目的结论均基于当前 `results/model_metrics.csv`、特征重要性结果与天气统计结果，不假设未被数据支持的模型优势或特征影响。
 
@@ -575,13 +687,16 @@ prediction residual = actual power - expected normal power
 4. 使用交叉验证与超参数优化进一步验证模型稳定性。
 5. 建立模块2异常检测流程，并根据预测残差设置异常阈值。
 6. 分析遮挡、积灰、逆变器异常和传感器异常等不同故障类型。
+7. 使用 Time Series Split（时间序列划分）或按站点留一验证，进一步减少随机 K-Fold 中相邻时间记录造成的潜在信息泄漏。
 
 当前真实数据仍存在以下限制：
 
 - 数据仅覆盖 2 个站点和 2023 年 1 月的少量日期，尚不能代表全年季节变化。
 - Rainy Conditions 使用代理规则，不能等同于真实降雨观测。
 - 当前下载的 4 个 PVDAQ 文件均包含 Voltage 与 Current，但兼容代码仍允许其他文件缺少这些字段。
+- Current 与 Power 存在直接电气关系，能够显著提高预测精度，但也可能弱化某些电气故障在功率残差中的表现；模块2需要联合多种异常指标。
+- 当前随机 K-Fold 可能使相邻分钟记录进入不同折，因此高 R² 结果可能略偏乐观，后续应使用时间序列与跨站点验证。
 
 概括为：
 
-> 本项目通过多天气数据集和多模型比较，建立了正常状态下的光伏发电功率预测基准。实验结果表明，光照强度是最重要的预测特征，不同天气条件下最佳模型不同，阴天条件具有更高预测难度。模块1生成的正常功率预测结果可以进一步支持模块2的异常检测。
+> 本项目通过真实多站点数据、多运行场景和多模型验证，建立了正常状态下的光伏发电功率预测基准。实验结果表明，Current 是当前真实数据模型中最重要的直接电气特征，Irradiance 是最重要的环境特征；不同天气场景下模型误差不同。模块1生成的折外正常功率基线可以进一步支持模块2的异常检测。
