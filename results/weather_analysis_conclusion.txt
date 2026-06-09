@@ -1,0 +1,3 @@
+Most accurate weather dataset: all_weather. Its best model is Gradient Boosting, with R2=0.9973, MAE=0.7014, and RMSE=1.1550.
+Most difficult weather dataset: cloudy. Its best model is Lasso Regression, with R2=0.9738, MAE=1.3266, and RMSE=1.6843.
+Weather conditions affect prediction performance: the R2 difference between the easiest and hardest datasets is 0.0235; MAE increases by 0.6252 kW and RMSE increases by 0.5293 kW for the most difficult dataset.

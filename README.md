@@ -41,11 +41,15 @@ PV/
     prediction_results.csv
     feature_importance.csv
     feature_importance.png
+    weather_analysis.csv
+    weather_comparison.png
+    weather_analysis_conclusion.txt
   src/
     preprocess_data.py
     create_weather_datasets.py
     train_model.py
     feature_importance_analysis.py
+    weather_impact_analysis.py
   README.md
   requirements.txt
 ```
@@ -77,6 +81,9 @@ docs/progress_report.md
 15. 预测效果图：`results/predicted_vs_actual.png`
 16. 特征重要性结果：`results/feature_importance.csv`
 17. 特征重要性图：`results/feature_importance.png`
+18. 天气影响比较表：`results/weather_analysis.csv`
+19. 天气影响比较图：`results/weather_comparison.png`
+20. 自动天气分析结论：`results/weather_analysis_conclusion.txt`
 
 ## 晴天和阴天数据集怎么划分
 
@@ -156,6 +163,39 @@ current:      not used in current model
 - `results/feature_importance.csv`
 - `results/feature_importance.png`
 
+## Weather Impact Analysis
+
+运行 `src/weather_impact_analysis.py` 可以读取 all_weather、sunny 和 cloudy 三个数据集的模型结果，并比较每个数据集最佳模型的 R²、MAE 和 RMSE。
+
+分析流程：
+
+- 从 `results/model_metrics.csv` 读取三个数据集的全部模型结果。
+- 自动选择每个数据集 RMSE 最低的最佳模型。
+- 按预测准确度自动排序。
+- 生成 R² 和 MAE comparison chart。
+- 自动判断哪种天气预测最准确、哪种天气预测最困难，以及天气变化对模型性能的影响。
+
+当前结果：
+
+```text
+all_weather: R2 0.9973, MAE 0.7014, RMSE 1.1550
+sunny:       R2 0.9927, MAE 1.1837, RMSE 1.5607
+cloudy:      R2 0.9738, MAE 1.3266, RMSE 1.6843
+```
+
+分析结论：
+
+- 当前 `all_weather` 数据集的整体预测最准确，最佳模型是 Gradient Boosting。
+- `cloudy` 数据集预测最困难，最佳模型是 Lasso Regression。
+- 阴天条件下辐照度和功率变化更不稳定，模型误差更高，说明天气变化会明显影响 PV power prediction 的性能。
+- all_weather 数据集包含更多训练样本，因此其结果也受到样本数量优势影响；天气影响分析应同时结合数据集大小理解。
+
+输出文件：
+
+- `results/weather_analysis.csv`
+- `results/weather_comparison.png`
+- `results/weather_analysis_conclusion.txt`
+
 ## 真实数据来源
 
 真实样本来自 NREL / DOE PVDAQ public dataset。
@@ -207,6 +247,12 @@ python src/train_model.py
 
 ```bash
 python src/feature_importance_analysis.py
+```
+
+运行天气影响分析：
+
+```bash
+python src/weather_impact_analysis.py
 ```
 
 ## 汇报话术
