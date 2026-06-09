@@ -52,7 +52,7 @@ def extract_raw_importance(bundle: dict) -> tuple[pd.DataFrame, str]:
         values = np.asarray(estimator.feature_importances_, dtype=float)
         method = "feature_importances_"
     elif model_name in LINEAR_MODEL_NAMES and hasattr(estimator, "coef_"):
-        # Absolute coefficients represent influence magnitude; coefficient sign is kept separately.
+        # Absolute coefficients are used because this analysis compares influence magnitude.
         coefficients = np.ravel(np.asarray(estimator.coef_, dtype=float))
         values = np.abs(coefficients)
         method = "absolute_model_coefficients"

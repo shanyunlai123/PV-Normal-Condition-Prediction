@@ -158,6 +158,8 @@ current:      not used in current model
 
 `temperature` 由 `ambient_temperature` 和 `module_temperature` 的重要性合并得到。当前训练数据没有将 voltage 和 current 作为模型输入，因此分析结果会明确标记它们为 `used_in_model=False`，不会错误地将其解释为低影响变量。
 
+**English interpretation:** Irradiance is the most important feature in the current best model. This is expected because PV modules convert incoming solar radiation into electrical power, so changes in irradiance directly change the available power output. The result is consistent with the physical behavior of a PV system. Temperature has a smaller secondary effect because higher module temperature can reduce conversion efficiency. Voltage and current are reported as not used because they are not input features in the current trained model.
+
 输出文件：
 
 - `results/feature_importance.csv`
@@ -190,11 +192,28 @@ cloudy:      R2 0.9738, MAE 1.3266, RMSE 1.6843
 - 阴天条件下辐照度和功率变化更不稳定，模型误差更高，说明天气变化会明显影响 PV power prediction 的性能。
 - all_weather 数据集包含更多训练样本，因此其结果也受到样本数量优势影响；天气影响分析应同时结合数据集大小理解。
 
+**English interpretation:** The all-weather dataset gives the best overall prediction result, while the cloudy dataset is the most difficult. Sunny conditions are more regular because irradiance and power usually follow a smoother daily pattern. Cloudy conditions introduce rapid and irregular irradiance changes, making the relationship between weather inputs and power output harder to predict. The larger all-weather dataset also benefits from having more training samples, so dataset size should be considered when interpreting the comparison.
+
 输出文件：
 
 - `results/weather_analysis.csv`
 - `results/weather_comparison.png`
 - `results/weather_analysis_conclusion.txt`
+
+## Discussion
+
+The analysis shows that PV power prediction depends strongly on both the selected input features and the operating weather condition. Irradiance dominates the feature importance results because it represents the solar energy available to the PV modules. Temperature has a smaller but physically meaningful influence through module efficiency.
+
+Model performance also changes across weather conditions. Random Forest performs best for sunny data, while Lasso Regression performs best for cloudy data. This suggests that no single model structure is guaranteed to be optimal for every weather scenario. Cloudy conditions remain more difficult because short-term irradiance fluctuations create a less stable power-generation pattern.
+
+Voltage and current are available in the real PVDAQ sample but are not yet included in the current training dataset. A future extension can map these real measurements into the model input features and repeat the feature importance analysis.
+
+## Key Findings
+
+- **Most important feature:** Irradiance is the most important feature for PV power prediction, contributing approximately 99.87% of the normalized importance among the requested features currently used by the model.
+- **Best model by weather condition:** Gradient Boosting performs best on `all_weather`, Random Forest performs best on `sunny`, and Lasso Regression performs best on `cloudy`.
+- **Weather and prediction accuracy:** Weather conditions affect prediction accuracy because cloudy conditions create faster and less predictable irradiance changes than sunny conditions.
+- **Support for Module 2 anomaly detection:** Module 1 establishes the expected normal power output under different weather conditions. In Module 2, a large difference between expected power and measured power can be used as an anomaly signal for faults, shading, soiling, or abnormal system operation.
 
 ## 真实数据来源
 
