@@ -215,6 +215,73 @@ Voltage and current are available in the real PVDAQ sample but are not yet inclu
 - **Weather and prediction accuracy:** Weather conditions affect prediction accuracy because cloudy conditions create faster and less predictable irradiance changes than sunny conditions.
 - **Support for Module 2 anomaly detection:** Module 1 establishes the expected normal power output under different weather conditions. In Module 2, a large difference between expected power and measured power can be used as an anomaly signal for faults, shading, soiling, or abnormal system operation.
 
+## Feature Importance Analysis Evidence
+
+The evidence script reads the existing `results/model_metrics.csv`, selects the best existing model for each dataset, and applies the appropriate importance method:
+
+- Tree models use `feature_importances_`.
+- Linear models use absolute coefficients from the existing standardized pipeline.
+
+| Dataset | Best model | Irradiance importance | Temperature importance | Method |
+|---|---|---:|---:|---|
+| all_weather | Gradient Boosting | 99.88% | 0.12% | `feature_importances_` |
+| sunny | Random Forest | 99.39% | 0.61% | `feature_importances_` |
+| cloudy | Lasso Regression | 93.96% | 6.04% | standardized absolute coefficients |
+
+Irradiance is the most important used feature for all three datasets. This is physically reasonable because PV power is primarily determined by the solar energy reaching the modules. Temperature has a secondary influence because module efficiency changes with temperature.
+
+The cloudy model assigns a larger relative influence to temperature than the sunny and all-weather models. This supports the model results: cloudy power prediction contains more secondary variation, while sunny and all-weather predictions are dominated more strongly by irradiance.
+
+Voltage and current are not input features in the current training datasets, so their importance cannot yet be measured. They are marked as `used_in_model=False` in the output files rather than being assigned an unsupported interpretation.
+
+Evidence files:
+
+- `results/feature_importance_all_weather.csv`
+- `results/feature_importance_sunny.csv`
+- `results/feature_importance_cloudy.csv`
+- `results/feature_importance_comparison.png`
+
+## Weather Impact Evidence
+
+The following evidence is calculated directly from the existing all-weather, sunny, and cloudy datasets:
+
+| Dataset | Irradiance mean | Irradiance std | Irradiance CV | Power mean | Power std | Irradiance-power correlation |
+|---|---:|---:|---:|---:|---:|---:|
+| all_weather | 194.169 | 244.163 | 1.257 | 18.038 | 22.573 | 0.9973 |
+| sunny | 560.679 | 214.581 | 0.383 | 51.514 | 18.737 | 0.9930 |
+| cloudy | 275.080 | 112.726 | 0.410 | 26.340 | 10.621 | 0.9866 |
+
+Sunny data has a lower relative irradiance variation than cloudy data (`CV 0.383` versus `0.410`) and a stronger irradiance-power correlation (`0.9930` versus `0.9866`). Although sunny irradiance has a larger absolute standard deviation because its irradiance level is much higher, cloudy irradiance varies more relative to its mean. This weaker and relatively more variable relationship helps explain why cloudy prediction has lower R² and higher errors.
+
+The all-weather dataset includes night and low-power records and has substantially more rows. Its strong result should therefore be interpreted together with its larger sample size and broad operating range.
+
+Evidence files:
+
+- `results/weather_statistics.csv`
+- `results/weather_statistics.png`
+
+## Model Result Discussion
+
+The following statements use the existing `results/model_metrics.csv` values and do not introduce new models:
+
+- **All Weather:** Gradient Boosting performs best with `MAE 0.7014`, `RMSE 1.1550`, and `R² 0.9973`. Gradient Boosting can combine many small nonlinear corrections across the broad all-weather operating range, which may explain its advantage on this larger and more varied dataset.
+- **Sunny:** Random Forest performs best with `MAE 1.1837`, `RMSE 1.5607`, and `R² 0.9927`. Sunny data has a strong irradiance-power relationship, while Random Forest can still capture smaller nonlinear effects from temperature and time features.
+- **Cloudy:** Lasso Regression performs best with `MAE 1.3266`, `RMSE 1.6843`, and `R² 0.9738`. Cloudy data has the weakest irradiance-power correlation and the highest relative irradiance variability of the two daytime weather groups. Lasso regularization may reduce overfitting on this smaller, less stable dataset.
+
+Different weather conditions can prefer different models because they create different relationships between irradiance, temperature, and power. The results show that model selection should be supported by measured errors for each operating condition rather than assuming one model is always best.
+
+## Connection to Anomaly Detection
+
+Module 1 predicts the expected normal PV power output from weather and operating inputs. Module 2 can compare that expected output with the actual measured output:
+
+```text
+prediction residual = actual power - expected normal power
+```
+
+A large or persistent residual may indicate abnormal operating conditions such as shading, soiling, inverter problems, sensor faults, or other PV system faults. Weather-specific evidence improves this process because Module 2 can use an appropriate normal-performance baseline for sunny and cloudy conditions, reducing false anomaly alarms caused only by weather changes.
+
+The remaining limitation is that voltage and current are not yet included in the current training datasets. Adding those real measurements later would provide stronger electrical evidence for distinguishing weather-driven changes from equipment faults.
+
 ## 真实数据来源
 
 真实样本来自 NREL / DOE PVDAQ public dataset。
@@ -272,6 +339,18 @@ python src/feature_importance_analysis.py
 
 ```bash
 python src/weather_impact_analysis.py
+```
+
+运行逐数据集 Feature Importance 证据分析：
+
+```bash
+python scripts/feature_importance_analysis.py
+```
+
+运行天气统计证据分析：
+
+```bash
+python scripts/weather_impact_analysis.py
 ```
 
 ## 汇报话术

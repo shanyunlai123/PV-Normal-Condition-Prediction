@@ -1,0 +1,5 @@
+dataset,best_model,feature,importance,used_in_model,source_features,analysis_method,importance_percent
+cloudy,Lasso Regression,irradiance,10.598369072299622,True,irradiance,standardized_abs_coef,93.96209649403728
+cloudy,Lasso Regression,temperature,0.6810398252787548,True,"ambient_temperature, module_temperature",standardized_abs_coef,6.037903505962711
+cloudy,Lasso Regression,voltage,0.0,False,not used,standardized_abs_coef,0.0
+cloudy,Lasso Regression,current,0.0,False,not used,standardized_abs_coef,0.0

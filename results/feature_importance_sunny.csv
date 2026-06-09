@@ -1,0 +1,5 @@
+dataset,best_model,feature,importance,used_in_model,source_features,analysis_method,importance_percent
+sunny,Random Forest,irradiance,0.989593177354975,True,irradiance,feature_importances_,99.38692166669331
+sunny,Random Forest,temperature,0.006104406149725678,True,"ambient_temperature, module_temperature",feature_importances_,0.6130783333066971
+sunny,Random Forest,voltage,0.0,False,not used,feature_importances_,0.0
+sunny,Random Forest,current,0.0,False,not used,feature_importances_,0.0
