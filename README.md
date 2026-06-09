@@ -170,8 +170,3 @@ python src/create_weather_datasets.py
 python src/train_model.py
 ```
 
-## 汇报话术
-
-可以这样说：
-
-> 我目前已经完成了光伏数据样本准备和数据预处理，并且不只是使用一个简单数据集训练模型。我把清洗后的数据进一步划分成全量天气、晴天和阴天数据集，然后在每个数据集上分别训练 Linear Regression、Random Forest、Gradient Boosting、SVR 等多个模型。初步结果显示，不同天气条件下最佳模型不同，这说明后续可以针对不同天气场景建立更细分的预测模型。
