@@ -1,0 +1,3 @@
+model,rows,baseline_cv_rmse,best_cv_rmse,rmse_improvement,best_parameters,saved_model
+Random Forest,5760,2.7017338045978168,2.68873738922011,0.012996415377706683,"{""max_depth"": 14, ""min_samples_split"": 2, ""n_estimators"": 200}",models\best_random_forest.pkl
+Gradient Boosting,5760,4.939988249377931,3.209630171525334,1.730358077852597,"{""learning_rate"": 0.08, ""max_depth"": 4, ""n_estimators"": 200}",models\best_gradient_boosting.pkl

@@ -11,6 +11,18 @@ PV/
   data/
     simulated_pv_data.csv
     clean_dataset.csv
+    raw/
+      real_pvdaq/
+    processed/
+      real_pvdaq_standardized.csv
+      real_pvdaq_combined.csv
+      sunny_dataset.csv
+      cloudy_dataset.csv
+      moderate_dataset.csv
+      rainy_dataset.csv
+      high_temperature_dataset.csv
+      low_temperature_dataset.csv
+      all_weather_dataset.csv
     weather_datasets/
       all_weather_dataset.csv
       sunny_dataset.csv
@@ -42,6 +54,12 @@ PV/
     train_model.py
     feature_importance_analysis.py
     weather_impact_analysis.py
+  scripts/
+    standardize_pvdaq_data.py
+    merge_real_pvdaq_data.py
+    create_operating_scenarios.py
+    cross_validation_analysis.py
+    hyperparameter_tuning.py
   README.md
   requirements.txt
 ```
@@ -110,6 +128,57 @@ data/real_samples/pvdaq_system_10_2023_01_01.csv
 - `module_temp_2__430`
 - `module_temp_3__431`
 - `poa_irradiance__421`
+
+## 真实 PVDAQ 数据字段统一
+
+不同 PVDAQ 站点使用不同的传感器编号。例如，system 10 的交流电压字段为 `ac_voltage__426`，而 system 4 的对应字段为 `ac_voltage__318`。脚本 `scripts/standardize_pvdaq_data.py` 使用字段语义前缀自动完成映射，而不是依赖固定编号。
+
+统一字段映射关系如下：
+
+| 统一字段 | PVDAQ 原始字段匹配规则 |
+|---|---|
+| `time` | `measured_on`、`timestamp` 或 `time` |
+| `irradiance` | `poa_irradiance__*`、`ghi__*` 或 `irradiance` |
+| `temperature` | `ambient_temp__*`、`module_temp_1__*` 或 `temperature` |
+| `voltage` | `ac_voltage__*`、`dc_pos_voltage__*` 或其他 voltage 字段 |
+| `current` | `ac_current__*`、`dc_pos_current__*` 或其他 current 字段 |
+| `power` | `ac_power__*`、`dc_power__*` 或其他 power 字段 |
+
+统一后的数据输出到：
+
+```text
+data/processed/real_pvdaq_standardized.csv
+```
+
+统一 Voltage（电压）与 Current（电流）字段，可以使不同站点使用相同特征训练模型，也能够为模块2提供更直接的电气异常证据。如果某个原始文件缺少电压或电流传感器，脚本会使用缺失值进行兼容，不会中断整个处理流程。
+
+运行字段统一：
+
+```bash
+python scripts/standardize_pvdaq_data.py
+```
+
+## 多站点与多日期真实数据整合
+
+项目现在支持自动读取 `data/raw/real_pvdaq/` 下的所有 CSV 文件。当前真实数据覆盖：
+
+- PVDAQ system 10：2023-01-01、2023-01-02、2023-01-03。
+- PVDAQ system 4：2023-01-01。
+- 共 2 个站点、4 个站点—日期组合、5,760 条分钟级记录。
+
+合并脚本保留 `source_site`、`date` 和 `source_file` 信息，并输出：
+
+```text
+data/processed/real_pvdaq_combined.csv
+```
+
+更多站点与更多日期能够增加设备差异、天气变化和运行范围，从而提高模型的 Generalization Ability（泛化能力），降低模型仅适用于单一站点或单一天气条件的风险。
+
+运行多文件合并：
+
+```bash
+python scripts/merge_real_pvdaq_data.py
+```
 
 # 数据预处理
 
@@ -181,6 +250,35 @@ All Weather Dataset（全天气数据集）包含 8,382 条记录，覆盖晴天
 
 ![天气条件数据集分布](results/weather_dataset_distribution.png)
 
+## 扩展运行场景分类
+
+为增强模型对复杂运行条件的覆盖，脚本 `scripts/create_operating_scenarios.py` 在现有晴天、阴天和全天气条件基础上，新增以下场景：
+
+- Moderate Weather（中等天气）：光照强度处于 250 至 600 的中等范围。
+- Rainy Conditions（雨天条件）：由于当前 PVDAQ 样本没有真实降雨字段，使用“低光照强度 + 高滚动波动”作为 Proxy Rule（代理规则）。
+- High Temperature Conditions（高温条件）：温度高于真实合并数据的第 75 分位数。
+- Low Temperature Conditions（低温条件）：温度低于真实合并数据的第 25 分位数。
+
+当前场景数据量如下：
+
+| 场景 | 记录数 |
+|---|---:|
+| Sunny | 233 |
+| Cloudy | 1,315 |
+| Moderate | 436 |
+| Rainy proxy | 88 |
+| High Temperature | 1,440 |
+| Low Temperature | 1,440 |
+| All Weather | 5,760 |
+
+增加更多天气和温度场景，可以检验模型在不同运行状态下是否稳定，并为模块2建立更细分的正常运行基准。所有场景数据保存于 `data/processed/`。
+
+运行扩展场景分类：
+
+```bash
+python scripts/create_operating_scenarios.py
+```
+
 # 机器学习模型
 
 训练脚本 `src/train_model.py` 在三个天气数据集上训练并比较以下已有回归模型：
@@ -218,6 +316,68 @@ RMSE（Root Mean Squared Error，均方根误差）对较大的预测误差更�
 ## 决定系数（R²）
 
 R²（Coefficient of Determination，决定系数）用于衡量模型对发电功率变化的解释能力。R² 越接近 1，说明模型能够解释的数据变化比例越高。
+
+## 交叉验证分析（Cross Validation Analysis）
+
+脚本 `scripts/cross_validation_analysis.py` 使用 K-Fold Cross Validation（K折交叉验证），对以下主要模型在七个运行场景中的稳定性进行验证：
+
+- Linear Regression
+- Lasso Regression
+- Random Forest Regressor
+- Gradient Boosting Regressor
+
+交叉验证通过多次改变训练集与验证集划分，减少单次随机划分对结果的影响。结果保存于：
+
+- `results/cross_validation_results.csv`
+- `results/cross_validation_comparison.png`
+
+现有真实数据上的主要结论如下：
+
+- Random Forest 在七个场景中的平均 CV RMSE 最低，为 `4.2255`，整体平均表现最佳。
+- Gradient Boosting 的平均 RMSE 标准差最低，为 `1.1005`，从跨场景平均结果看更加稳定。
+- Random Forest 在 All Weather、Cloudy、Moderate 和 Low Temperature 场景表现最佳。
+- Gradient Boosting 在 Sunny、Rainy proxy 和 High Temperature 场景表现最佳。
+- 不同运行场景的最佳模型并不一致，说明场景差异会影响模型选择。
+
+下面的图展示了不同模型在各运行场景中的平均交叉验证 RMSE。
+
+![交叉验证模型比较](results/cross_validation_comparison.png)
+
+运行交叉验证分析：
+
+```bash
+python scripts/cross_validation_analysis.py
+```
+
+## 超参数优化（Hyperparameter Optimization）
+
+脚本 `scripts/hyperparameter_tuning.py` 使用 GridSearchCV（网格搜索交叉验证），对 Random Forest 和 Gradient Boosting 进行超参数优化。
+
+优化参数包括：
+
+- Random Forest：`n_estimators`、`max_depth`、`min_samples_split`。
+- Gradient Boosting：`n_estimators`、`learning_rate`、`max_depth`。
+
+当前最优参数与结果如下：
+
+| 模型 | 最优参数 | 基准 CV RMSE | 优化后 CV RMSE | RMSE 改善 |
+|---|---|---:|---:|---:|
+| Random Forest | `max_depth=14, min_samples_split=2, n_estimators=200` | 2.7017 | 2.6887 | 0.0130 |
+| Gradient Boosting | `learning_rate=0.08, max_depth=4, n_estimators=200` | 4.9400 | 3.2096 | 1.7304 |
+
+Random Forest 优化后仅小幅提升，说明其基准参数已经较合理。Gradient Boosting 的 CV RMSE 明显下降，说明调参提高了其预测可靠性。由于优化目标来自多折交叉验证，而不是单一测试集，因此能够在一定程度上降低过拟合风险。
+
+输出与最优模型：
+
+- `results/hyperparameter_tuning_results.csv`
+- `models/best_random_forest.pkl`
+- `models/best_gradient_boosting.pkl`
+
+运行超参数优化：
+
+```bash
+python scripts/hyperparameter_tuning.py
+```
 
 # 实验结果
 
@@ -386,7 +546,11 @@ prediction residual = actual power - expected normal power
 
 通过建立晴天、阴天和全天气条件下的正常性能基准，模块2能够区分天气变化造成的正常功率波动与设备异常造成的异常功率偏差，从而减少仅由天气变化引起的误报。
 
-当前限制是 Voltage（电压）和 Current（电流）尚未进入训练数据。后续加入真实电气测量数据后，可以进一步增强模块2区分天气变化与设备故障的能力。
+原有模拟数据模型尚未使用 Voltage（电压）和 Current（电流）。新增真实数据处理流程已将这两个字段纳入统一真实数据，可用于后续真实数据模型与模块2分析。
+
+新增真实数据处理流程已经将 Voltage 与 Current 映射到统一数据字段。交叉验证和调参脚本使用这些电气变量与光照强度、温度共同预测正常功率，因此模块2未来可以同时利用功率残差、电压偏差和电流偏差识别异常。
+
+扩展场景分类也能降低异常检测误报。例如，低光照、高温或 Rainy proxy 场景下的正常功率下降不应直接判定为设备故障，而应与对应场景的正常预测基准进行比较。
 
 # 项目结论
 
@@ -405,12 +569,18 @@ prediction residual = actual power - expected normal power
 
 后续研究可从以下方向继续扩展：
 
-1. 将真实 PVDAQ 样本中的 Voltage（电压）和 Current（电流）字段映射到统一训练数据。
-2. 使用更多日期和更多站点的真实光伏数据替代或补充模拟数据。
-3. 增加 Moderate（中等天气）、雨天、高温与低温等运行场景。
+1. 继续增加更多季节、更多日期和更多站点的真实 PVDAQ 数据。
+2. 获取包含真实降雨标签的数据，替代当前 Rainy proxy 代理规则。
+3. 将真实数据训练结果与原有模拟数据模型进行系统比较。
 4. 使用交叉验证与超参数优化进一步验证模型稳定性。
 5. 建立模块2异常检测流程，并根据预测残差设置异常阈值。
 6. 分析遮挡、积灰、逆变器异常和传感器异常等不同故障类型。
+
+当前真实数据仍存在以下限制：
+
+- 数据仅覆盖 2 个站点和 2023 年 1 月的少量日期，尚不能代表全年季节变化。
+- Rainy Conditions 使用代理规则，不能等同于真实降雨观测。
+- 当前下载的 4 个 PVDAQ 文件均包含 Voltage 与 Current，但兼容代码仍允许其他文件缺少这些字段。
 
 概括为：
 
