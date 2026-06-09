@@ -39,10 +39,13 @@ PV/
     model_comparison.png
     predicted_vs_actual.png
     prediction_results.csv
+    feature_importance.csv
+    feature_importance.png
   src/
     preprocess_data.py
     create_weather_datasets.py
     train_model.py
+    feature_importance_analysis.py
   README.md
   requirements.txt
 ```
@@ -72,6 +75,8 @@ docs/progress_report.md
 13. 各数据集最佳模型：`results/best_models_by_dataset.csv`
 14. 模型比较图：`results/model_comparison.png`
 15. 预测效果图：`results/predicted_vs_actual.png`
+16. 特征重要性结果：`results/feature_importance.csv`
+17. 特征重要性图：`results/feature_importance.png`
 
 ## 晴天和阴天数据集怎么划分
 
@@ -123,6 +128,34 @@ cloudy:      Lasso Regression,  RMSE 1.6843, R2 0.9738
 
 这说明项目已经不只是简单训练一个模型，而是在比较不同天气场景下模型表现的差异。
 
+## Feature Importance Analysis
+
+运行 `src/feature_importance_analysis.py` 可以使用已经训练完成的最佳模型分析变量对 PV power prediction 的影响程度。
+
+分析规则：
+
+- 如果最佳模型是 Random Forest、Gradient Boosting、Extra Trees 或 Decision Tree，则使用模型的 `feature_importances_`。
+- 如果最佳模型是 Linear Regression、Ridge Regression 或 Lasso Regression，则使用模型系数的绝对值。
+- 所有结果会自动按重要性从高到低排序。
+
+当前最佳模型是全量天气数据集上的 `Gradient Boosting`。当前结果显示：
+
+```text
+irradiance:  99.87%
+temperature:  0.13%
+voltage:      not used in current model
+current:      not used in current model
+```
+
+因此，当前模型中对 PV power prediction 影响最大的变量是 `irradiance`。
+
+`temperature` 由 `ambient_temperature` 和 `module_temperature` 的重要性合并得到。当前训练数据没有将 voltage 和 current 作为模型输入，因此分析结果会明确标记它们为 `used_in_model=False`，不会错误地将其解释为低影响变量。
+
+输出文件：
+
+- `results/feature_importance.csv`
+- `results/feature_importance.png`
+
 ## 真实数据来源
 
 真实样本来自 NREL / DOE PVDAQ public dataset。
@@ -170,3 +203,14 @@ python src/create_weather_datasets.py
 python src/train_model.py
 ```
 
+运行最佳模型特征重要性分析：
+
+```bash
+python src/feature_importance_analysis.py
+```
+
+## 汇报话术
+
+可以这样说：
+
+> 我目前已经完成了光伏数据样本准备和数据预处理，并且不只是使用一个简单数据集训练模型。我把清洗后的数据进一步划分成全量天气、晴天和阴天数据集，然后在每个数据集上分别训练 Linear Regression、Random Forest、Gradient Boosting、SVR 等多个模型。初步结果显示，不同天气条件下最佳模型不同，这说明后续可以针对不同天气场景建立更细分的预测模型。

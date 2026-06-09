@@ -1,0 +1,5 @@
+variable,importance,used_in_model,source_features,model_name,dataset,analysis_method,importance_percent
+irradiance,0.9981517797852903,True,irradiance,Gradient Boosting,all_weather,feature_importances_,99.8694441284579
+temperature,0.0013048493128042832,True,"ambient_temperature, module_temperature",Gradient Boosting,all_weather,feature_importances_,0.1305558715420972
+voltage,0.0,False,not used,Gradient Boosting,all_weather,feature_importances_,0.0
+current,0.0,False,not used,Gradient Boosting,all_weather,feature_importances_,0.0
