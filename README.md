@@ -129,6 +129,10 @@ data/real_samples/pvdaq_system_10_2023_01_01.csv
 - 删除异常或极端记录：378 行。
 - 核心字段缺失值数量：0。
 
+下面的图展示了数据清洗前后主要变量的分布变化。
+
+![数据预处理前后分布对比](results/data_distribution.png)
+
 安装依赖并运行数据预处理：
 
 ```bash
@@ -172,6 +176,10 @@ Cloudy Dataset（阴天数据集）包含 1,263 条记录，平均光照强度�
 ## 全天气数据集（All Weather Dataset）
 
 All Weather Dataset（全天气数据集）包含 8,382 条记录，覆盖晴天、阴天、中等天气、夜间和低功率运行状态。该数据集样本数量最多，能够表示更广泛的运行范围，但其良好预测结果也需要结合较大的样本规模进行解释。
+
+下面的图展示了晴天、阴天及其他天气条件下的数据分布差异。
+
+![天气条件数据集分布](results/weather_dataset_distribution.png)
 
 # 机器学习模型
 
@@ -229,6 +237,14 @@ sunny:       R2 0.9927, MAE 1.1837, RMSE 1.5607
 cloudy:      R2 0.9738, MAE 1.3266, RMSE 1.6843
 ```
 
+下面的图比较了不同模型在各天气数据集上的 RMSE 表现。
+
+![模型性能比较](results/model_comparison.png)
+
+下面的图展示了各数据集最佳模型的预测功率与实际功率关系。
+
+![预测功率与实际功率对比](results/predicted_vs_actual.png)
+
 ## 全天气（All Weather）
 
 All Weather（全天气）条件下，Gradient Boosting（梯度提升树）表现最佳，其 MAE 为 0.7014、RMSE 为 1.1550、R² 为 0.9973。
@@ -281,6 +297,14 @@ Irradiance（光照强度）是三个数据集最佳模型中最重要的已使�
 
 Voltage（电压）和 Current（电流）尚未作为当前训练数据的输入特征，因此不能可靠计算其重要性。结果文件将它们标记为 `used_in_model=False`，而不是给出缺乏证据的解释。
 
+下面的图展示了不同天气数据集最佳模型的特征重要性对比。
+
+![特征重要性对比](results/feature_importance_comparison.png)
+
+下面的图展示了当前整体最佳模型的特征重要性分析结果。
+
+![整体最佳模型特征重要性](results/feature_importance.png)
+
 输出文件包括：
 
 - `results/feature_importance.csv`
@@ -323,6 +347,14 @@ Weather Impact Analysis（天气影响分析）使用已有模型指标和实际
 虽然晴天光照强度的绝对标准差更高，但这是因为晴天的整体光照水平明显更高。从相对波动角度看，阴天光照变化更不稳定，且光照强度与发电功率之间的关系更弱。这些统计差异能够解释阴天条件下 R² 较低、MAE 与 RMSE 较高的现象。
 
 全天气数据集包含夜间和低功率记录，并拥有更多训练样本，因此其良好预测性能需要结合样本规模与运行范围进行解释。
+
+下面的图展示了不同天气条件下的 R² 与 MAE 对比。
+
+![天气条件模型性能对比](results/weather_comparison.png)
+
+下面的图使用光照强度、发电功率和相关系数等统计量，为天气影响结论提供数据证据。
+
+![天气影响统计证据](results/weather_statistics.png)
 
 输出文件包括：
 
