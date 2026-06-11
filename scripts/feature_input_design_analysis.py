@@ -171,6 +171,9 @@ def main() -> None:
                 "absolute_error": np.abs(clean[TARGET].to_numpy() - prediction),
             }
         )
+        baseline[["actual_power", "predicted_power", "prediction_error", "absolute_error"]] = (
+            baseline[["actual_power", "predicted_power", "prediction_error", "absolute_error"]].round(10)
+        )
         baseline.to_csv(BASELINE_PATHS[model_name], index=False)
         fitted_model = clone(base_model).fit(clean[features], clean[TARGET])
         save_feature_importance(model_name, fitted_model, features)
@@ -187,6 +190,7 @@ def main() -> None:
         )
 
     results = pd.DataFrame(rows)
+    results[["mae", "rmse", "r2"]] = results[["mae", "rmse", "r2"]].round(10)
     results.to_csv(COMPARISON_PATH, index=False)
     save_model_comparison(results)
 

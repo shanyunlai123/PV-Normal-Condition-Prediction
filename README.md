@@ -524,7 +524,20 @@ python src/feature_importance_analysis.py
 python scripts/feature_importance_analysis.py
 ```
 
-## 特征重要性与目标泄漏风险分析
+## Environment-Based Prediction Experiment（环境预测实验）
+
+本实验使用相同的真实 PVDAQ 训练数据、相同的 tuned Random Forest（调优随机森林）参数和相同的 5-fold Out-of-Fold Validation（五折折外验证），仅改变输入特征，用于隔离并评估电气测量带来的影响：
+
+- **实验 A：Environment-based Model（环境预测模型）**
+  - 输入：Irradiance、Temperature
+  - 输出：Power
+  - 用途：研究环境因素对正常发电能力的影响，并建立正常工况预测基准。
+- **实验 B：Electrical-assisted Model（电气增强模型）**
+  - 输入：Irradiance、Temperature、Voltage、Current
+  - 输出：Power
+  - 用途：研究电气参数对预测精度的提升，并作为运行状态监测参考。
+
+## Feature Leakage Discussion（特征泄漏讨论）
 
 真实 PVDAQ 训练数据的数据质量检查表明，Current、Voltage、Irradiance、Temperature 和 Power 均没有缺失值，也不是常数列：
 
@@ -555,8 +568,8 @@ Power ≈ Voltage × Current × Power Factor
 
 因此，本项目同时保留两种输入设计：
 
-1. **Environment-based Model（环境模型）**：输入 Irradiance 和 Temperature，用于建立正常发电能力基准。
-2. **Electrical-assisted Model（电气辅助模型）**：输入 Irradiance、Temperature、Voltage 和 Current，用于说明电气测量能够提高预测精度，并作为运行状态监控参考。
+1. **Environment-based Model（环境模型）**：用于研究环境因素并建立正常工况预测基准。
+2. **Electrical-assisted Model（电气辅助模型）**：用于研究电气参数带来的精度提升，并作为运行状态监测参考。
 
 两种模型均使用相同 tuned Random Forest 参数、相同 5-fold shuffled out-of-fold validation 和相同 5,760 条记录：
 
@@ -565,7 +578,12 @@ Power ≈ Voltage × Current × Power Factor
 | Environment-based Model | 2.5414 | 7.1595 | 0.997648 |
 | Electrical-assisted Model | 0.7328 | 2.7112 | 0.999663 |
 
-加入电气测量后 RMSE 降低约 `62.1%`。该提升是真实的预测提升，但并不等同于环境条件基准能力提升。Environment-based Model 的 Feature Importance 为 Irradiance `89.84%`、Temperature `10.16%`；Electrical-assisted Model 则由 Current `93.14%` 主导。Module 1 的正常发电基准应优先使用 Environment-based Model，Electrical-assisted Model 应作为辅助诊断模型。
+加入电气测量后 RMSE 降低约 `62.1%`。该提升是真实的预测提升，但并不等同于环境条件基准能力提升。Environment-based Model 的 Feature Importance 为 Irradiance `89.84%`、Temperature `10.16%`；Electrical-assisted Model 则由 Current `93.14%` 主导。
+
+最终实验定位如下：
+
+- 实验 A 更适合作为正常工况预测基准。
+- 实验 B 更适合作为运行状态监测参考。
 
 下面的图展示真实数据特征相关性。
 
