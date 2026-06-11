@@ -3,6 +3,10 @@
 from pathlib import Path
 
 import joblib
+import matplotlib
+
+matplotlib.use("Agg")
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -15,6 +19,7 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 DATA_PATH = ROOT_DIR / "data" / "processed" / "all_weather_dataset.csv"
 MODEL_PATH = ROOT_DIR / "models" / "best_random_forest.pkl"
 RESULTS_DIR = ROOT_DIR / "results"
+MODELS_DIR = ROOT_DIR / "models"
 
 QUALITY_PATH = RESULTS_DIR / "real_data_feature_quality_report.csv"
 CORRELATION_PATH = RESULTS_DIR / "real_data_correlation_report.csv"
@@ -40,8 +45,22 @@ BASELINE_PATHS = {
     "Environment-based model": RESULTS_DIR / "predicted_power_environment_baseline.csv",
     "Electrical-assisted model": RESULTS_DIR / "predicted_power_electrical_assisted_baseline.csv",
 }
+EXPERIMENT_MODEL_PATHS = {
+    "Environment-Based Model": MODELS_DIR / "environment_based_random_forest.pkl",
+    "Electrical-Assisted Model": MODELS_DIR / "electrical_assisted_random_forest.pkl",
+}
 REPORT_FEATURES = ["current", "voltage", "irradiance", "temperature", "power"]
 TARGET = "power"
+
+# Both experiments use the same tuned Random Forest configuration and real-data rows.
+EXPERIMENTS = {
+    "Environment-Based Model": ["irradiance", "temperature"],
+    "Electrical-Assisted Model": ["irradiance", "temperature", "voltage", "current"],
+}
+EXPERIMENT_OUTPUT_KEYS = {
+    "Environment-Based Model": "Environment-based model",
+    "Electrical-Assisted Model": "Electrical-assisted model",
+}
 
 
 def save_quality_report(df: pd.DataFrame) -> None:
@@ -132,7 +151,7 @@ def save_model_comparison(results: pd.DataFrame) -> None:
     labels = ["Environment", "Electrical-assisted"]
     for axis, metric, title in zip(
         axes,
-        ["mae", "rmse", "r2"],
+        ["MAE", "RMSE", "R2"],
         ["MAE (lower is better)", "RMSE (lower is better)", "R² (higher is better)"],
     ):
         bars = axis.bar(labels, results[metric], color=colors)
@@ -149,17 +168,21 @@ def save_model_comparison(results: pd.DataFrame) -> None:
 def main() -> None:
     """Run quality checks and compare the two feature-input designs."""
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    MODELS_DIR.mkdir(parents=True, exist_ok=True)
     df = pd.read_csv(DATA_PATH)
     save_quality_report(df)
     save_correlation_report(df)
 
     base_model = joblib.load(MODEL_PATH)
+    # Single-process execution avoids Windows Tk/joblib thread shutdown crashes.
+    if "n_jobs" in base_model.get_params():
+        base_model.set_params(n_jobs=1)
     cv = KFold(n_splits=5, shuffle=True, random_state=42)
     rows = []
-    for model_name, features in MODEL_DESIGNS.items():
+    for model_name, features in EXPERIMENTS.items():
         clean = df.dropna(subset=features + [TARGET]).copy()
         prediction = cross_val_predict(
-            clone(base_model), clean[features], clean[TARGET], cv=cv, n_jobs=-1
+            clone(base_model), clean[features], clean[TARGET], cv=cv, n_jobs=1
         )
         baseline = pd.DataFrame(
             {
@@ -174,23 +197,25 @@ def main() -> None:
         baseline[["actual_power", "predicted_power", "prediction_error", "absolute_error"]] = (
             baseline[["actual_power", "predicted_power", "prediction_error", "absolute_error"]].round(10)
         )
-        baseline.to_csv(BASELINE_PATHS[model_name], index=False)
+        output_key = EXPERIMENT_OUTPUT_KEYS[model_name]
+        baseline.to_csv(BASELINE_PATHS[output_key], index=False)
         fitted_model = clone(base_model).fit(clean[features], clean[TARGET])
-        save_feature_importance(model_name, fitted_model, features)
+        joblib.dump(fitted_model, EXPERIMENT_MODEL_PATHS[model_name])
+        save_feature_importance(output_key, fitted_model, features)
+        importance = pd.Series(fitted_model.feature_importances_, index=features)
         rows.append(
             {
-                "model_design": model_name,
+                "model_type": model_name,
                 "features": ", ".join(features),
-                "rows": len(clean),
-                "validation": "5-fold shuffled out-of-fold prediction",
-                "mae": mean_absolute_error(clean[TARGET], prediction),
-                "rmse": mean_squared_error(clean[TARGET], prediction) ** 0.5,
-                "r2": r2_score(clean[TARGET], prediction),
+                "MAE": mean_absolute_error(clean[TARGET], prediction),
+                "RMSE": mean_squared_error(clean[TARGET], prediction) ** 0.5,
+                "R2": r2_score(clean[TARGET], prediction),
+                "main_feature": importance.idxmax(),
             }
         )
 
     results = pd.DataFrame(rows)
-    results[["mae", "rmse", "r2"]] = results[["mae", "rmse", "r2"]].round(10)
+    results[["MAE", "RMSE", "R2"]] = results[["MAE", "RMSE", "R2"]].round(10)
     results.to_csv(COMPARISON_PATH, index=False)
     save_model_comparison(results)
 

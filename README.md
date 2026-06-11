@@ -482,30 +482,9 @@ Feature Importance Analysis（特征重要性分析）用于解释不同输入�
 - `temperature` 由 `ambient_temperature` 和 `module_temperature` 的重要性合并得到。
 - 所有输出按重要性自动排序。
 
-针对新增真实 PVDAQ 数据，本项目使用已调优的 Random Forest 对 Irradiance（光照强度）、Temperature（温度）、Voltage（电压）和 Current（电流）进行特征重要性分析。当前结果如下：
+本项目不再将模拟天气数据 Feature Importance 与真实 PVDAQ 四特征模型 Feature Importance 直接比较，因为两者的数据来源、字段定义和实验目标不同。原有结果继续保留为补充材料，但 Module 1 的主要结论来自下文使用同一份真实 PVDAQ 数据完成的 Experiment A 与 Experiment B。
 
-```text
-current:      93.14%
-irradiance:    5.58%
-temperature:   1.20%
-voltage:       0.08%
-```
-
-Current（电流）是当前真实数据模型中最重要的特征。该结果符合电气物理规律，因为交流功率与电压、电流直接相关；在电压相对稳定时，电流变化会直接反映功率变化。Irradiance 仍然是最重要的环境特征，因为光照强度决定了光伏组件可转换的太阳能量。
-
-Current 的高重要性也需要谨慎解释：由于电流与功率存在非常直接的物理关系，在模块2异常检测中，如果故障同时改变电流和功率，模型可能将部分异常解释为正常功率变化。因此，模块2应结合功率残差、天气条件与电气规则共同判断异常。
-
-原有模拟天气数据分析仍表明 Irradiance 是主要环境驱动因素；新增真实数据分析进一步说明 Current 和 Voltage 能够增强模型对实际电气输出的解释能力。
-
-下面的图展示了原有天气数据集最佳模型的特征重要性对比。
-
-![特征重要性对比](results/feature_importance_comparison.png)
-
-下面的图展示了已调优真实数据 Random Forest 的特征重要性分析结果。
-
-![整体最佳模型特征重要性](results/feature_importance.png)
-
-输出文件包括：
+补充结果文件包括：
 
 - `results/feature_importance.csv`
 - `results/feature_importance.png`
@@ -524,9 +503,9 @@ python src/feature_importance_analysis.py
 python scripts/feature_importance_analysis.py
 ```
 
-## Environment-Based Prediction Experiment（环境预测实验）
+## 环境预测模型与电气增强模型对比
 
-本实验使用相同的真实 PVDAQ 训练数据、相同的 tuned Random Forest（调优随机森林）参数和相同的 5-fold Out-of-Fold Validation（五折折外验证），仅改变输入特征，用于隔离并评估电气测量带来的影响：
+本节包含两个独立训练的真实 PVDAQ Random Forest 实验。两个实验使用相同的 5,760 条真实数据、相同的 tuned Random Forest（调优随机森林）参数和相同的 5-fold Out-of-Fold Validation（五折折外验证），唯一差异是输入特征。
 
 - **实验 A：Environment-based Model（环境预测模型）**
   - 输入：Irradiance、Temperature
@@ -564,7 +543,7 @@ Current 在真实数据 Electrical-assisted Model（电气辅助模型）中的�
 Power ≈ Voltage × Current × Power Factor
 ```
 
-这不表示模型或字段映射错误。Current 数据具有正常变化且不存在缺失；它对 Power 具有非常强的直接解释能力。但对于“根据环境条件预测正常发电能力”的研究目标，使用同一时刻的 Current 和 Voltage 会形成 Target Proxy Risk（目标代理风险）：模型可能直接重建已测量 Power，而不是学习天气条件与正常发电能力之间的关系。
+这不表示模型或字段映射错误。Current 数据具有正常变化且不存在缺失；它对 Power 具有非常强的直接解释能力。但对于“根据环境条件预测正常发电能力”的研究目标，使用同一时刻的 Current 和 Voltage 会形成 Target Leakage Risk（目标泄漏风险）或 Target Proxy Risk（目标代理风险）：模型可能直接重建已测量 Power，而不是学习天气条件与正常发电能力之间的关系。
 
 因此，本项目同时保留两种输入设计：
 
@@ -595,9 +574,9 @@ Power ≈ Voltage × Current × Power Factor
 
 下面两张图分别展示 Environment-based Model 和 Electrical-assisted Model 的特征重要性。
 
-![环境模型特征重要性](results/feature_importance_environment_model.png)
+![Environment-Based Feature Importance](results/feature_importance_environment_model.png)
 
-![电气辅助模型特征重要性](results/feature_importance_electrical_model.png)
+![Electrical-Assisted Feature Importance](results/feature_importance_electrical_model.png)
 
 输出文件：
 
@@ -612,6 +591,8 @@ Power ≈ Voltage × Current × Power Factor
 - `results/feature_importance_electrical_model.png`
 - `results/predicted_power_environment_baseline.csv`
 - `results/predicted_power_electrical_assisted_baseline.csv`
+- `models/environment_based_random_forest.pkl`
+- `models/electrical_assisted_random_forest.pkl`
 
 运行分析：
 
