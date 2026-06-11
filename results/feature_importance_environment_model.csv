@@ -1,0 +1,3 @@
+model_design,feature,importance,importance_percent,analysis_method
+Environment-based model,irradiance,0.8984495269768061,89.84495269768061,feature_importances_
+Environment-based model,temperature,0.10155047302319385,10.155047302319385,feature_importances_

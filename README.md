@@ -524,6 +524,83 @@ python src/feature_importance_analysis.py
 python scripts/feature_importance_analysis.py
 ```
 
+## 特征重要性与目标泄漏风险分析
+
+真实 PVDAQ 训练数据的数据质量检查表明，Current、Voltage、Irradiance、Temperature 和 Power 均没有缺失值，也不是常数列：
+
+| Feature | Min | Max | Mean | Std | Missing |
+|---|---:|---:|---:|---:|---:|
+| Current | 0.1739 | 8.8396 | 1.6752 | 1.1085 | 0 |
+| Voltage | 115.4500 | 119.4433 | 117.4963 | 0.6365 | 0 |
+| Irradiance | 0.0000 | 1325.5000 | 89.7131 | 199.9551 | 0 |
+| Temperature | -8.3368 | 4.9055 | -2.0035 | 2.6802 | 0 |
+| Power | 0.0000 | 1017.6000 | 62.8619 | 147.6295 | 0 |
+
+Power 与主要输入特征的 Pearson Correlation（皮尔逊相关系数）为：
+
+| Feature | Correlation with Power |
+|---|---:|
+| Irradiance | 0.9107 |
+| Current | 0.8493 |
+| Temperature | 0.4078 |
+| Voltage | 0.3544 |
+
+Current 在真实数据 Electrical-assisted Model（电气辅助模型）中的重要性达到 `93.14%`，主要原因是 Power 与 Current 存在直接电气关系：
+
+```text
+Power ≈ Voltage × Current × Power Factor
+```
+
+这不表示模型或字段映射错误。Current 数据具有正常变化且不存在缺失；它对 Power 具有非常强的直接解释能力。但对于“根据环境条件预测正常发电能力”的研究目标，使用同一时刻的 Current 和 Voltage 会形成 Target Proxy Risk（目标代理风险）：模型可能直接重建已测量 Power，而不是学习天气条件与正常发电能力之间的关系。
+
+因此，本项目同时保留两种输入设计：
+
+1. **Environment-based Model（环境模型）**：输入 Irradiance 和 Temperature，用于建立正常发电能力基准。
+2. **Electrical-assisted Model（电气辅助模型）**：输入 Irradiance、Temperature、Voltage 和 Current，用于说明电气测量能够提高预测精度，并作为运行状态监控参考。
+
+两种模型均使用相同 tuned Random Forest 参数、相同 5-fold shuffled out-of-fold validation 和相同 5,760 条记录：
+
+| Model | MAE | RMSE | R² |
+|---|---:|---:|---:|
+| Environment-based Model | 2.5414 | 7.1595 | 0.997648 |
+| Electrical-assisted Model | 0.7328 | 2.7112 | 0.999663 |
+
+加入电气测量后 RMSE 降低约 `62.1%`。该提升是真实的预测提升，但并不等同于环境条件基准能力提升。Environment-based Model 的 Feature Importance 为 Irradiance `89.84%`、Temperature `10.16%`；Electrical-assisted Model 则由 Current `93.14%` 主导。Module 1 的正常发电基准应优先使用 Environment-based Model，Electrical-assisted Model 应作为辅助诊断模型。
+
+下面的图展示真实数据特征相关性。
+
+![真实数据输入特征相关性](results/real_data_correlation_heatmap.png)
+
+下面的图比较两种输入设计的折外预测性能。
+
+![环境模型与电气辅助模型性能比较](results/environment_vs_electrical_model_comparison.png)
+
+下面两张图分别展示 Environment-based Model 和 Electrical-assisted Model 的特征重要性。
+
+![环境模型特征重要性](results/feature_importance_environment_model.png)
+
+![电气辅助模型特征重要性](results/feature_importance_electrical_model.png)
+
+输出文件：
+
+- `results/real_data_feature_quality_report.csv`
+- `results/real_data_correlation_report.csv`
+- `results/real_data_correlation_heatmap.png`
+- `results/environment_vs_electrical_model_comparison.csv`
+- `results/environment_vs_electrical_model_comparison.png`
+- `results/feature_importance_environment_model.csv`
+- `results/feature_importance_environment_model.png`
+- `results/feature_importance_electrical_model.csv`
+- `results/feature_importance_electrical_model.png`
+- `results/predicted_power_environment_baseline.csv`
+- `results/predicted_power_electrical_assisted_baseline.csv`
+
+运行分析：
+
+```bash
+python scripts/feature_input_design_analysis.py
+```
+
 # 相关性分析
 
 Correlation Analysis（相关性分析）使用真实 PVDAQ 统一数据，计算 Irradiance、Temperature、Voltage、Current 与 Power 之间的 Pearson Correlation（皮尔逊相关系数）。
@@ -667,17 +744,34 @@ prediction residual = actual power - expected normal power
 
 原有模拟数据模型尚未使用 Voltage（电压）和 Current（电流）。新增真实数据处理流程已将这两个字段纳入统一真实数据，可用于后续真实数据模型与模块2分析。
 
-新增真实数据处理流程已经将 Voltage 与 Current 映射到统一数据字段。交叉验证和调参脚本使用这些电气变量与光照强度、温度共同预测正常功率，因此模块2未来可以同时利用功率残差、电压偏差和电流偏差识别异常。
+新增真实数据处理流程已经将 Voltage 与 Current 映射到统一数据字段。输入设计对比证明，使用 Current 和 Voltage 的 Electrical-assisted Model 会显著降低 Prediction Error，但也可能使模型通过直接电气关系重建 Power，从而掩盖同时影响 Current 和 Power 的故障。
+
+因此，Module 2 不应只依赖 Power Prediction Error（功率预测误差），也不应只使用 Electrical-assisted Model 的低残差作为正常判断。推荐联合使用：
+
+- Environment-based Model 的 `prediction_error`
+- Voltage Abnormality（电压异常）
+- Current Fluctuation（电流波动）
+- Irradiance-Power Mismatch（光照强度与功率不匹配）
+
+Environment-based Model 用于判断当前天气条件下“应该产生多少功率”；Electrical-assisted Model 与电压、电流规则用于判断系统实际电气状态是否合理。两类证据联合使用，可以减少电气故障被低 Prediction Error 掩盖的风险。
+
+Module 2 应优先使用以下环境模型正常功率基线：
+
+```text
+results/predicted_power_environment_baseline.csv
+```
+
+原有 `results/predicted_power_baseline.csv` 与新增 `results/predicted_power_electrical_assisted_baseline.csv` 作为电气辅助模型结果保留，用于对比与运行状态诊断，不作为唯一异常判断依据。
 
 扩展场景分类也能降低异常检测误报。例如，低光照、高温或 Rainy proxy 场景下的正常功率下降不应直接判定为设备故障，而应与对应场景的正常预测基准进行比较。
 
-项目已经生成可直接供模块2使用的正常功率基线：
+项目同时保留原有电气辅助功率基线，用于与环境模型基线进行诊断对比：
 
 ```text
 results/predicted_power_baseline.csv
 ```
 
-该文件由折外预测生成，核心字段包括：
+上述基线文件均由折外预测生成，核心字段包括：
 
 - `time`
 - `actual_power`
@@ -773,7 +867,7 @@ python scripts/time_series_validation.py
    在真实 PVDAQ 数据的交叉验证中，Random Forest 的跨场景平均 CV RMSE 最低，为 `4.2255`；其调优后 All Weather CV RMSE 为 `2.6887`。因此，Random Forest 是当前真实数据管线中整体表现最好的模型。
 
 2. **哪个特征最重要？**
-   在已调优的真实数据 Random Forest 中，Current 的特征重要性最高，为 `93.14%`。Irradiance 是最重要的环境特征，并且与 Power 的相关系数最高，为 `0.9107`。
+   在 Electrical-assisted Model 中，Current 的特征重要性最高，为 `93.14%`，这是直接电气关系造成的目标代理效应；在更适合作为正常发电基准的 Environment-based Model 中，Irradiance 的重要性最高，为 `89.84%`。
 
 3. **天气是否影响模型性能？**
    是。交叉验证与折外误差结果均显示，不同天气和运行场景的最佳模型、MAE 与 RMSE 并不一致。
@@ -782,7 +876,7 @@ python scripts/time_series_validation.py
    不同天气改变光照强度水平、波动程度和有效样本分布。高功率 Sunny 场景样本较少且绝对功率变化更大，因此当前真实数据模型在 Sunny 场景的误差最高。
 
 5. **模块1如何支持模块2？**
-   模块1提供每个时间点的正常预期功率和折外预测残差。模块2可以将持续的大残差作为潜在异常信号，并结合天气场景、电压和电流进一步判断故障类型。
+   模块1优先使用 Environment-based Model 提供正常预期功率和折外预测残差。模块2联合使用预测误差、电压异常、电流波动和 Irradiance-Power Mismatch 判断异常，避免只依赖 Electrical-assisted Model 的低残差。
 
 6. **模型能否迁移到新站点和未来年份？**
    模型在多数具有充分样本的未见站点上能够保持有效预测，跨站点中位 R² 为 `0.8336`。但未来年份验证的 R² 从 `0.8869` 下降到 `0.4451`，明显低于随机 K-Fold 的 `0.9457`，说明时间变化和站点覆盖仍是主要泛化风险。
@@ -793,7 +887,7 @@ python scripts/time_series_validation.py
 
 主要结论如下：
 
-1. 原有模拟天气数据分析表明 Irradiance 是主要环境驱动因素；新增真实电气数据分析表明 Current 是当前真实数据模型中最重要的直接预测特征。
+1. Environment-based Model 表明 Irradiance 是正常发电能力预测中最重要的环境驱动因素；Electrical-assisted Model 中 Current 是最重要的直接电气特征，但其高重要性包含明显的目标代理风险。
 2. 真实数据交叉验证表明 Random Forest 整体平均表现最佳，而不同天气和温度场景仍可能偏好不同模型。
 3. 相关性、交叉验证和预测误差结果共同证明，天气条件、样本分布与功率范围会影响模型预测性能。
 4. 模块1已经生成折外预测正常功率基线，能够为模块2提供更可靠的异常检测输入。
@@ -818,9 +912,9 @@ python scripts/time_series_validation.py
 - Rainy Conditions 使用代理规则，不能等同于真实降雨观测。
 - 商业站点 34 的完整可用记录较少；站点 50 的有效发电变化不足，导致跨站点验证不稳定。
 - 不同站点的 Voltage 与 Current 可能来自 AC 或 DC 侧，跨站点模型不能在未统一传感器语义前直接使用这些电气特征。
-- Current 与 Power 存在直接电气关系，能够显著提高预测精度，但也可能弱化某些电气故障在功率残差中的表现；模块2需要联合多种异常指标。
+- Current 与 Power 存在直接电气关系，能够显著提高预测精度，但也可能弱化某些电气故障在功率残差中的表现；模块2应优先使用环境模型基线，并联合预测误差、电压异常、电流波动与 Irradiance-Power Mismatch。
 - 当前随机 K-Fold 可能使相邻分钟记录进入不同折，因此高 R² 结果可能略偏乐观，后续应使用时间序列与跨站点验证。
 
 概括为：
 
-> 本项目通过真实多站点数据、多运行场景和多模型验证，建立了正常状态下的光伏发电功率预测基准。实验结果表明，Current 是当前真实数据模型中最重要的直接电气特征，Irradiance 是最重要的环境特征；不同天气场景下模型误差不同。模块1生成的折外正常功率基线可以进一步支持模块2的异常检测。
+> 本项目通过真实多站点数据、多运行场景和多模型验证，建立了正常状态下的光伏发电功率预测基准。Environment-based Model 以 Irradiance 和 Temperature 建立正常发电基线；Electrical-assisted Model 说明 Current 能显著提高预测精度，但存在目标代理风险。模块2应联合环境模型残差和独立电气异常指标进行判断。

@@ -1,0 +1,5 @@
+model_design,feature,importance,importance_percent,analysis_method
+Electrical-assisted model,current,0.9313732231721433,93.13732231721433,feature_importances_
+Electrical-assisted model,irradiance,0.05578552211973275,5.578552211973275,feature_importances_
+Electrical-assisted model,temperature,0.012007481058503034,1.2007481058503033,feature_importances_
+Electrical-assisted model,voltage,0.0008337736496209145,0.08337736496209144,feature_importances_

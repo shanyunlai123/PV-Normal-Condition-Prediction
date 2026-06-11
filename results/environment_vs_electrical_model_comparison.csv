@@ -1,0 +1,3 @@
+model_design,features,rows,validation,mae,rmse,r2
+Environment-based model,"irradiance, temperature",5760,5-fold shuffled out-of-fold prediction,2.5414330315709703,7.159468694672101,0.9976477110444134
+Electrical-assisted model,"irradiance, temperature, voltage, current",5760,5-fold shuffled out-of-fold prediction,0.7328232669903909,2.7112135841866203,0.9996626687743796
