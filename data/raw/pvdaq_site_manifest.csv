@@ -1,0 +1,9 @@
+system_id,source_site,system_public_name,dc_capacity_kw,site_category,downloaded_years,source
+2,PVDAQ_2,Residential 1a,2.912,residential_proxy,2020,NREL PVDAQ OEDI public data lake
+4,PVDAQ_4,NREL x-Si -1,1.0,small_experimental,"2020,2021,2022,2023",NREL PVDAQ OEDI public data lake
+10,PVDAQ_10,NREL CIS -1,1.12,small_experimental,"2020,2021,2022,2023",NREL PVDAQ OEDI public data lake
+33,PVDAQ_33,Silicor Materials,2.4,small_experimental,"2020,2021,2022,2023",NREL PVDAQ OEDI public data lake
+50,PVDAQ_50,NREL x-Si 6,6.0,small_experimental,"2020,2021,2022,2023",NREL PVDAQ OEDI public data lake
+34,PVDAQ_34,Andre Agassi Preparatory Academy - Building A,146.64,commercial,2020,NREL PVDAQ OEDI public data lake
+14200,PVDAQ_14200,SAS_SF1,1000.0,utility_scale,"2020,2021,2022",NREL PVDAQ OEDI public data lake
+14201,PVDAQ_14201,SAS_SF2,1340.0,utility_scale,"2020,2021,2022",NREL PVDAQ OEDI public data lake

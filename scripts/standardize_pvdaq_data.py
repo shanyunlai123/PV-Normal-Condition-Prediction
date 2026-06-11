@@ -24,22 +24,49 @@ STANDARD_COLUMNS = [
 
 # PVDAQ sensor suffixes differ between sites, so prefixes are used for mapping.
 FIELD_PREFIXES = {
-    "time": ["measured_on", "timestamp", "time"],
-    "irradiance": ["poa_irradiance", "ghi", "irradiance"],
-    "temperature": ["ambient_temp", "module_temp_1", "temperature"],
+    "time": ["measured_on", "utc_measured_on", "timestamp", "time"],
+    "irradiance": ["poa_irradiance", "irradiance_poa", "ghi", "irradiance_ghi", "irradiance"],
+    "temperature": [
+        "ambient_temp",
+        "temperature_ambient",
+        "module_temp_1",
+        "module_temp",
+        "module_temp_f",
+        "temperature_module",
+        "temperature",
+    ],
     "voltage": ["ac_voltage", "dc_pos_voltage", "dc_voltage", "voltage"],
-    "current": ["ac_current", "dc_pos_current", "dc_current", "current"],
-    "power": ["ac_power", "dc_power", "power"],
+    "current": ["ac_current", "dc_pos_current", "dc_current_meter", "dc_current", "current"],
+    "power": ["ac_power_meter", "ac_power_hw", "ac_power", "dc_power", "power"],
 }
 
 
-def find_column(columns: list[str], prefixes: list[str]) -> str | None:
-    """Find the first column whose name equals or starts with a known prefix."""
+def find_columns(columns: list[str], prefixes: list[str]) -> list[str]:
+    """Find columns matching the first available sensor prefix."""
     for prefix in prefixes:
-        for column in columns:
-            if column == prefix or column.startswith(f"{prefix}__"):
-                return column
-    return None
+        matches = [
+            column
+            for column in columns
+            if column == prefix
+            or column.startswith(f"{prefix}__")
+            or column.startswith(f"{prefix}_inv_")
+            or column.startswith(f"{prefix}_")
+        ]
+        if matches:
+            return matches
+    return []
+
+
+def combine_sensor_columns(raw_df: pd.DataFrame, field: str, columns: list[str]) -> pd.Series:
+    """Combine multi-inverter sensors using physically appropriate aggregation."""
+    if not columns:
+        return pd.Series(np.nan, index=raw_df.index)
+    numeric = raw_df[columns].apply(pd.to_numeric, errors="coerce")
+    if field in {"power", "current"} and len(columns) > 1:
+        return numeric.sum(axis=1, min_count=1)
+    if field in {"voltage", "temperature", "irradiance"} and len(columns) > 1:
+        return numeric.mean(axis=1)
+    return numeric.iloc[:, 0]
 
 
 def basic_weather_label(irradiance: pd.Series) -> pd.Series:
@@ -59,28 +86,31 @@ def standardize_file(path: Path) -> pd.DataFrame:
     raw_df = pd.read_csv(path)
     columns = raw_df.columns.tolist()
     mapped_columns = {
-        field: find_column(columns, prefixes)
+        field: find_columns(columns, prefixes)
         for field, prefixes in FIELD_PREFIXES.items()
     }
 
     standardized = pd.DataFrame(index=raw_df.index)
-    for field in ["time", "irradiance", "temperature", "voltage", "current", "power"]:
-        source_column = mapped_columns[field]
-        standardized[field] = raw_df[source_column] if source_column else np.nan
+    time_columns = mapped_columns["time"]
+    standardized["time"] = raw_df[time_columns[0]] if time_columns else np.nan
+    for field in ["irradiance", "temperature", "voltage", "current", "power"]:
+        standardized[field] = combine_sensor_columns(raw_df, field, mapped_columns[field])
 
     standardized["time"] = pd.to_datetime(standardized["time"], errors="coerce")
     for field in ["irradiance", "temperature", "voltage", "current", "power"]:
         standardized[field] = pd.to_numeric(standardized[field], errors="coerce")
 
     if "system_id" in raw_df.columns:
-        standardized["source_site"] = "PVDAQ_" + raw_df["system_id"].astype(str)
+        standardized["system_id"] = pd.to_numeric(raw_df["system_id"], errors="coerce")
+        standardized["source_site"] = "PVDAQ_" + standardized["system_id"].astype("Int64").astype(str)
     else:
+        standardized["system_id"] = pd.NA
         standardized["source_site"] = path.stem.split("_202")[0]
 
     standardized["weather_condition"] = basic_weather_label(standardized["irradiance"])
     standardized["source_file"] = path.name
 
-    missing = [field for field, source in mapped_columns.items() if source is None]
+    missing = [field for field, source in mapped_columns.items() if not source]
     print(f"{path.name}: mapped={mapped_columns}, missing={missing or 'none'}")
     return standardized
 

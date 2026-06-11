@@ -1,0 +1,5 @@
+system_id,reason
+1199,No irradiance or temperature channels; inverter power only.
+1200,"Metered AC power is available, but irradiance, temperature, voltage, and current are absent."
+1332,"Utility-scale power/current channels are available, but irradiance and temperature are absent."
+1430,"Irradiance and temperature are available, but no power channel is published."

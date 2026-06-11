@@ -106,13 +106,20 @@ docs/progress_report.md
 
 真实数据样本来自 NREL（美国国家可再生能源实验室）与 DOE（美国能源部）的 PVDAQ（Photovoltaic Data Acquisition，光伏数据采集）公开数据集。
 
-当前保留的真实样本为 PVDAQ system 10 在 2023-01-01 的分钟级光伏运行数据：
+项目最初使用 PVDAQ system 10 在 2023-01-01 的分钟级数据进行流程验证。当前研究数据已经扩展至 8 个站点、2020–2023 四个年份和四个季节，数据来自 PVDAQ OEDI Public Data Lake：
 
 ```text
-data/real_samples/pvdaq_system_10_2023_01_01.csv
+data/raw/real_pvdaq/
+data/processed/multi_site_dataset.csv
+data/processed/multi_year_dataset.csv
 ```
 
-该真实样本包含交流功率、直流功率、环境温度、组件温度与阵列平面光照强度等字段。新增真实数据处理流程已经将 Voltage（电压）与 Current（电流）映射到统一训练数据，可用于真实数据模型与异常检测分析。
+数据源：
+
+- PVDAQ OEDI 数据页：https://data.openei.org/submissions/4568
+- OEDI 公共数据湖：https://oedi-data-lake.s3.amazonaws.com/?prefix=pvdaq/csv/
+
+真实样本包含交流或直流功率、环境或组件温度、Voltage（电压）、Current（电流）与阵列平面光照强度等字段。标准化流程根据传感器语义映射不同站点字段，并保留 `system_id` 与 `source_site`。
 
 ## 数据字段说明
 
@@ -169,11 +176,12 @@ python scripts/standardize_pvdaq_data.py
 
 ## 多站点与多日期真实数据整合
 
-项目现在支持自动读取 `data/raw/real_pvdaq/` 下的所有 CSV 文件。当前真实数据覆盖：
+项目现在支持自动读取 `data/raw/real_pvdaq/` 下的所有 CSV 文件。当前扩展研究数据覆盖：
 
-- PVDAQ system 10：2023-01-01、2023-01-02、2023-01-03。
-- PVDAQ system 4：2023-01-01。
-- 共 2 个站点、4 个站点—日期组合、5,760 条分钟级记录。
+- 8 个 PVDAQ 站点，包含 Residential Proxy（住宅代理）、Commercial（商业）、Utility-scale（公用事业规模）和小型实验站点。
+- 2020、2021、2022、2023 四个年份。
+- Spring、Summer、Autumn、Winter 四个季节。
+- `53,871` 条可用真实记录，相比原始 `5,760` 条样例增加 `48,111` 条，即约 `835%`。
 
 合并脚本保留 `source_site`、`date` 和 `source_file` 信息，并输出：
 
@@ -187,6 +195,37 @@ data/processed/real_pvdaq_combined.csv
 
 ```bash
 python scripts/merge_real_pvdaq_data.py
+```
+
+## 多站点分析（Multi-Site Analysis）
+
+脚本 `scripts/download_multi_site_pvdaq.py` 从 PVDAQ OEDI 公共数据湖下载可复现的季节代表日期样本。站点按 DC Capacity（直流额定容量）建立研究分类；该分类用于分析，不是 PVDAQ 官方站点标签。
+
+| 研究类别 | 代表站点 | 容量范围 |
+|---|---|---:|
+| Residential Proxy | PVDAQ 2 | 2.912 kW |
+| Commercial | PVDAQ 34 | 146.640 kW |
+| Utility-scale | PVDAQ 14200、14201 | 1,000–1,340 kW |
+| Small Experimental | PVDAQ 4、10、33、50 | 1–6 kW |
+
+跨站点数据包含不同容量、逆变器、传感器语义与运行环境，能够检验模型是否只记住单一站点规律。统一输出为：
+
+```text
+data/processed/multi_site_dataset.csv
+```
+
+跨站点原始 Power 同时存在 W 与 kW 单位。验证脚本首先根据站点容量统一功率单位，再计算 `normalized_power = power_kw / dc_capacity_kw`。由于不同站点的 Voltage 和 Current 可能分别来自 AC 或 DC 侧，跨站点泛化验证仅使用语义一致的 Irradiance 与 Temperature，避免把传感器差异误认为模型能力。
+
+## 多年份数据集（Multi-Year Dataset）
+
+总体数据覆盖 2020–2023。PVDAQ 站点的年份覆盖并不一致：站点 4、10、33、50 覆盖四年；utility-scale 站点 14200、14201 覆盖 2020–2022；住宅代理站点 2 与商业站点 34 在当前可用样本中仅覆盖 2020。
+
+长期数据可以包含设备老化、季节变化、年度天气差异和传感器漂移，因此比单月随机划分更适合验证未来数据稳定性。输出文件：
+
+```text
+data/processed/multi_year_dataset.csv
+results/pvdaq_coverage_audit.csv
+results/pvdaq_candidate_exclusions.csv
 ```
 
 # 数据预处理
@@ -647,6 +686,87 @@ results/predicted_power_baseline.csv
 
 模块2可以根据 `prediction_error` 的绝对值和持续时间设置异常阈值。单次较大误差可能来自传感器噪声或天气突变，而持续的大幅误差更可能表示遮挡、积灰、逆变器问题或其他故障。
 
+# 季节分析（Seasonal Analysis）
+
+季节分析使用日间正常范围数据，并通过留一站点验证计算各季节的跨站点预测误差：
+
+| 季节 | 日间样本数 | Irradiance Mean | Temperature Mean | Mean Power | Cross-Site RMSE | R² |
+|---|---:|---:|---:|---:|---:|---:|
+| Spring | 5,971 | 438.38 | 9.18 | 26.57 kW | 0.0789 | 0.9258 |
+| Summer | 4,675 | 415.82 | 24.06 | 42.23 kW | 0.1480 | 0.6126 |
+| Autumn | 4,133 | 553.96 | 11.57 | 32.01 kW | 0.0463 | 0.9650 |
+| Winter | 6,943 | 410.44 | 2.31 | 15.03 kW | 0.1135 | 0.8408 |
+
+当前采样数据中，Summer 的平均原始发电功率最高；按容量归一化后，Autumn 的平均输出最高。Summer 的跨站点 RMSE 最大、R² 最低，因此是当前最难迁移预测的季节。该结果说明温度、站点组成和季节性辐照分布会影响模型性能，但由于数据采用季节代表日而非完整全年连续记录，不能将其解释为全年总发电量结论。
+
+下面的图比较四季的光照、温度和跨站点预测误差。
+
+![季节统计与预测误差比较](results/seasonal_comparison.png)
+
+输出文件：
+
+- `results/seasonal_statistics.csv`
+- `results/seasonal_comparison.png`
+
+# 跨站点泛化（Cross-Site Generalization）
+
+Cross-Site Validation（跨站点验证）采用 Leave-One-Site-Out（留一站点）方法：每次使用其他 7 个站点训练，并在一个完全未见过的站点测试。为解决不同站点容量和 W/kW 单位差异，预测目标使用容量归一化功率。
+
+主要结果：
+
+- 两个 Utility-scale 站点的 R² 分别为 `0.9272` 和 `0.9451`，说明环境特征模型可以在相似大型站点之间迁移。
+- PVDAQ 33 与 PVDAQ 10 的 R² 分别为 `0.9414` 和 `0.8773`。
+- 所有站点的中位 RMSE 为 `0.0997`，中位 R² 为 `0.8336`。
+- PVDAQ 34 仅有 36 条可用于验证的日间记录；PVDAQ 50 的有效发电变化极少。这两个站点的负 R² 主要反映样本质量与覆盖不足，不能视为稳定泛化结论。
+
+因此，模型能够迁移到部分新站点，但泛化能力依赖目标站点是否具有足够、具有代表性的正常发电样本。输出：
+
+```text
+results/cross_site_validation.csv
+```
+
+# 时间泛化（Temporal Generalization）
+
+时间序列验证使用 Expanding Window（扩展窗口）：仅使用过去年份训练，并测试未来年份。它与随机 K-Fold 的结果差异如下：
+
+| 验证方法 | 测试年份 | RMSE | R² |
+|---|---|---:|---:|
+| Random KFold | Mixed 2020–2023 | 0.0641 | 0.9457 |
+| Train 2020 → Test 2021 | 2021 | 0.1014 | 0.8869 |
+| Train 2020–2021 → Test 2022 | 2022 | 0.1626 | 0.6750 |
+| Train 2020–2022 → Test 2023 | 2023 | 0.1220 | 0.4451 |
+
+未来年份上的性能明显低于随机 K-Fold。这证明随机划分会因相邻时间记录与相似运行状态同时进入训练和测试集而高估模型泛化能力。输出：
+
+```text
+results/time_series_validation.csv
+```
+
+# 数据集覆盖改进（Dataset Coverage Improvement）
+
+本轮扩展将项目从 2 个站点、单月少量日期的样例验证，升级为 8 个站点、4 个年份和四季代表日期的跨站点研究样本。
+
+| 覆盖指标 | 扩展前 | 扩展后 |
+|---|---:|---:|
+| 站点数 | 2 | 8 |
+| 年份数 | 1 | 4 |
+| 季节数 | 1 | 4 |
+| 可用记录数 | 5,760 | 53,871 |
+| 记录增长 | - | +48,111（约 +835%） |
+
+候选站点 1199、1200、1332 和 1430 未纳入统一研究数据：1199 缺少 Irradiance 与 Temperature；1200 缺少环境、电压和电流字段；1332 缺少 Irradiance 与 Temperature；1430 缺少 Power。详细原因保存在 `results/pvdaq_candidate_exclusions.csv`。
+
+运行完整覆盖与验证分析：
+
+```bash
+python scripts/download_multi_site_pvdaq.py
+python scripts/standardize_pvdaq_data.py
+python scripts/dataset_coverage_analysis.py
+python scripts/seasonal_analysis.py
+python scripts/cross_site_validation.py
+python scripts/time_series_validation.py
+```
+
 # 关键发现（Key Findings）
 
 1. **哪个模型表现最好？**
@@ -663,6 +783,9 @@ results/predicted_power_baseline.csv
 
 5. **模块1如何支持模块2？**
    模块1提供每个时间点的正常预期功率和折外预测残差。模块2可以将持续的大残差作为潜在异常信号，并结合天气场景、电压和电流进一步判断故障类型。
+
+6. **模型能否迁移到新站点和未来年份？**
+   模型在多数具有充分样本的未见站点上能够保持有效预测，跨站点中位 R² 为 `0.8336`。但未来年份验证的 R² 从 `0.8869` 下降到 `0.4451`，明显低于随机 K-Fold 的 `0.9457`，说明时间变化和站点覆盖仍是主要泛化风险。
 
 # 项目结论
 
@@ -681,19 +804,20 @@ results/predicted_power_baseline.csv
 
 后续研究可从以下方向继续扩展：
 
-1. 继续增加更多季节、更多日期和更多站点的真实 PVDAQ 数据。
+1. 将当前季节代表日扩展为连续月份或完整年度数据，并增加有效商业站点样本。
 2. 获取包含真实降雨标签的数据，替代当前 Rainy proxy 代理规则。
 3. 将真实数据训练结果与原有模拟数据模型进行系统比较。
 4. 使用交叉验证与超参数优化进一步验证模型稳定性。
 5. 建立模块2异常检测流程，并根据预测残差设置异常阈值。
 6. 分析遮挡、积灰、逆变器异常和传感器异常等不同故障类型。
-7. 使用 Time Series Split（时间序列划分）或按站点留一验证，进一步减少随机 K-Fold 中相邻时间记录造成的潜在信息泄漏。
+7. 在现有 Time-Series Validation 与 Leave-One-Site-Out Validation 基础上，进一步使用按站点和年份同时分组的双重外推验证。
 
 当前真实数据仍存在以下限制：
 
-- 数据仅覆盖 2 个站点和 2023 年 1 月的少量日期，尚不能代表全年季节变化。
+- 数据已覆盖 8 个站点、2020–2023 和四季代表日期，但尚不是完整连续年度数据。
 - Rainy Conditions 使用代理规则，不能等同于真实降雨观测。
-- 当前下载的 4 个 PVDAQ 文件均包含 Voltage 与 Current，但兼容代码仍允许其他文件缺少这些字段。
+- 商业站点 34 的完整可用记录较少；站点 50 的有效发电变化不足，导致跨站点验证不稳定。
+- 不同站点的 Voltage 与 Current 可能来自 AC 或 DC 侧，跨站点模型不能在未统一传感器语义前直接使用这些电气特征。
 - Current 与 Power 存在直接电气关系，能够显著提高预测精度，但也可能弱化某些电气故障在功率残差中的表现；模块2需要联合多种异常指标。
 - 当前随机 K-Fold 可能使相邻分钟记录进入不同折，因此高 R² 结果可能略偏乐观，后续应使用时间序列与跨站点验证。
 
